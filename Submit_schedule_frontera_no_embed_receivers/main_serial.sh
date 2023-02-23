@@ -21,7 +21,7 @@
 #       followed by "module help launcher".
 #----------------------------------------------------
 
-#SBATCH -J 1D_Wa_Fl           # Job name
+#SBATCH -J dg1d_adv           # Job name
 #SBATCH -o serial.o%j       # Name of stdout output file
 #SBATCH -e serial.e%j       # Name of stderr error file
 #SBATCH -p rtx              # Queue (partition) name
@@ -34,10 +34,10 @@
 # Any other commands must follow all #SBATCH directives...
 module load launcher
 module load cuda nccl cudnn
-
+module list
 
 export LAUNCHER_WORKDIR=$2
 export LAUNCHER_JOB_FILE=$2/arguement_files$1
 
 # # Launch serial code...
-cd $WORK && source SOURCE/JAX_GPUs/bin/activate && cd $2 && ${LAUNCHER_DIR}/paramrun
+source $WORK/PHO-ICES/dggnn-env/bin/activate && ${LAUNCHER_DIR}/paramrun
