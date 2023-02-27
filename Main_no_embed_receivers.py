@@ -14,8 +14,9 @@ NODE = args.node
 GPU_index = args.GPU_index
 
 import os
-
 os.environ["CUDA_VISIBLE_DEVICES"] = str(GPU_index)
+
+from functools import partial
 
 import jax
 # from jax.example_libraries import optimizers
@@ -61,23 +62,25 @@ num_batches = int(num_complete_batches) + int(bool(leftover))
 # num_epochs = 10
 # wandb_upload = False
 
+proj = partial(os.path.join,os.environ["PROJ"])
+
 # In time space
-N = int(np.loadtxt('../MATLAB/N.txt', delimiter=','))
-K = int(np.loadtxt('../MATLAB/K.txt', delimiter=','))
-x = np.loadtxt('../MATLAB/x.txt', delimiter=',')
-LIFT = np.loadtxt('../MATLAB/LIFT.txt', delimiter=',')
-Dr = np.loadtxt('../MATLAB/Dr.txt', delimiter=',')
-Fscale = np.loadtxt('../MATLAB/Fscale.txt', delimiter=',')
-rk4a = np.loadtxt('../MATLAB/rk4a.txt', delimiter=',')
-rk4b = np.loadtxt('../MATLAB/rk4b.txt', delimiter=',')
-rx = np.loadtxt('../MATLAB/rx.txt', delimiter=',')
-vmapM = np.loadtxt('../MATLAB/vmapM.txt', delimiter=',', dtype=int) - 1
-vmapP = np.loadtxt('../MATLAB/vmapP.txt', delimiter=',', dtype=int) - 1
-vmapI = np.loadtxt('../MATLAB/vmapI.txt', delimiter=',', dtype=int) - 1
-vmapO = np.loadtxt('../MATLAB/vmapO.txt', delimiter=',', dtype=int) - 1
-mapI = np.loadtxt('../MATLAB/mapI.txt', delimiter=',', dtype=int) - 1
-mapO = np.loadtxt('../MATLAB/mapO.txt', delimiter=',', dtype=int) - 1
-nx = np.loadtxt('../MATLAB/nx.txt', delimiter=',')
+N = int(np.loadtxt(proj('MATLAB/N.txt'), delimiter=','))
+K = int(np.loadtxt(proj('MATLAB/K.txt'), delimiter=','))
+x = np.loadtxt(proj('MATLAB/x.txt'), delimiter=',')
+LIFT = np.loadtxt(proj('MATLAB/LIFT.txt'), delimiter=',')
+Dr = np.loadtxt(proj('MATLAB/Dr.txt'), delimiter=',')
+Fscale = np.loadtxt(proj('MATLAB/Fscale.txt'), delimiter=',')
+rk4a = np.loadtxt(proj('MATLAB/rk4a.txt'), delimiter=',')
+rk4b = np.loadtxt(proj('MATLAB/rk4b.txt'), delimiter=',')
+rx = np.loadtxt(proj('MATLAB/rx.txt'), delimiter=',')
+vmapM = np.loadtxt(proj('MATLAB/vmapM.txt'), delimiter=',', dtype=int) - 1
+vmapP = np.loadtxt(proj('MATLAB/vmapP.txt'), delimiter=',', dtype=int) - 1
+vmapI = np.loadtxt(proj('MATLAB/vmapI.txt'), delimiter=',', dtype=int) - 1
+vmapO = np.loadtxt(proj('MATLAB/vmapO.txt'), delimiter=',', dtype=int) - 1
+mapI = np.loadtxt(proj('MATLAB/mapI.txt'), delimiter=',', dtype=int) - 1
+mapO = np.loadtxt(proj('MATLAB/mapO.txt'), delimiter=',', dtype=int) - 1
+nx = np.loadtxt(proj('MATLAB/nx.txt'), delimiter=',')
 Np = N + 1
 Nfp = 1
 Nfaces = 2
@@ -107,7 +110,7 @@ if wandb_upload:
 #! 1. Loading data by pandas
 print('='*20 + ' >>')
 print('Loading train data ...')
-Train_data = pd.read_csv('../data/Train_noise_' + str(noise_level) + '_d_' +
+Train_data = pd.read_csv(proj('data/Train_noise_') + str(noise_level) + '_d_' +
                          str(num_train) + '_Nt_' + str(nt_step_train) + '_K_' +
                          str(K) + '_Np_' + str(N) + '.csv')
 Train_data = np.reshape(Train_data.to_numpy(), (num_train, nt_step_train, K*Np))
@@ -116,7 +119,7 @@ print(Train_data.shape)
 print('='*20 + ' >>')
 print('Loading test data ...')
 
-Test_data = pd.read_csv('../data/Test_d_' + str(num_test) + '_Nt_' +
+Test_data = pd.read_csv(proj('data/Test_d_') + str(num_test) + '_Nt_' +
                         str(nt_step_test) + '_K_' + str(K) + '_Np_' + str(N) +
                         '.csv')
 Test_data = np.reshape(Test_data.to_numpy(), (num_test, nt_step_test, K*Np))
@@ -434,10 +437,10 @@ def TrainModel(train_data, test_data, num_epochs, params, opt_state, wandb_uploa
           'TEST MIN': float(test_accuracy_min)
       })
       # trained_params = optimizers.unpack_optimizer_state(optimal_opt_state)
-      pickle.dump(best_params, open('../Network/Best_' + filename, "wb"))
+      pickle.dump(best_params, open(proj('Network/Best_') + filename, "wb"))
 
       # trained_params = optimizers.unpack_optimizer_state(opt_state)
-      pickle.dump(params, open('../Network/End_' + filename, "wb"))
+      pickle.dump(params, open(proj('Network/End_') + filename, "wb"))
 
   return best_params, params
 
@@ -448,10 +451,10 @@ best_params, end_params = TrainModel(Train_data, Test_data, num_epochs,
 # optimum_params = opt_get_params(best_opt_state)
 
 # trained_params = optimizers.unpack_optimizer_state(best_opt_state)
-# pickle.dump(trained_params, open('../Network/Best_' + filename, "wb"))
+# pickle.dump(trained_params, open(proj('Network/Best_' + filename, "wb"))
 
 # trained_params = optimizers.unpack_optimizer_state(end_opt_state)
-# pickle.dump(trained_params, open('../Network/End_' + filename, "wb"))
+# pickle.dump(trained_params, open(proj('Network/End_' + filename, "wb"))
 
 # best_params = pickle.load(open('Network/Best_' + filename, "rb"))
 # opt_state = optimizers.pack_optimizer_state(best_params)
