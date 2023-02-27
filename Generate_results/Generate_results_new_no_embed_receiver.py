@@ -360,11 +360,11 @@ def load_plotfunction(alpha1, alpha2, alpha3, alpha4, type):
 
 
 best_params, neural_solver, Test_data, Test_data_2, K, N, single_forward_pass, pred_sols = load_plotfunction(
-    0., 0.0, 64, 1., 'best')
+    0., 0.0, 256, 1., 'best')
 
 # Test_data[:,100,:] - Test_data_2[:,100,:]
 Solution_samples_array = pd.DataFrame({'samples': Test_data.flatten()})
-Solution_samples_array.to_csv('resutls_data/true.csv', index=False)
+Solution_samples_array.to_csv('data/true.csv', index=False)
 
 
 def save_to_file(alpha1, alpha2, alpha3, alpha4, type):
@@ -377,19 +377,19 @@ def save_to_file(alpha1, alpha2, alpha3, alpha4, type):
         alpha3) + '_noise_level_' + str(alpha2) + '_fluxalpha_' + str(alpha4)
 
     if type == 'best':
-        Solution_samples_array.to_csv('resutls_data/pred_1dim_' + case +
+        Solution_samples_array.to_csv('data/pred_1dim_' + case +
                                       '_new_no_embed_receivers.csv',
                                       index=False)
 
     if type == 'end':
-        Solution_samples_array.to_csv('resutls_data/end_pred_1dim_' + case +
+        Solution_samples_array.to_csv('data/end_pred_1dim_' + case +
                                       '_new_no_embed_receivers.csv',
                                       index=False)
 
     return pred_sols
 
 
-pred_sols_2 = save_to_file(0., 0.0, 64, 1., 'best')
+pred_sols_2 = save_to_file(0., 0.0, 256, 1., 'best')
 
 
 def load_from_file(alpha1, alpha2, alpha3, alpha4):
@@ -399,9 +399,9 @@ def load_from_file(alpha1, alpha2, alpha3, alpha4):
     case = '_alpha_' + str(alpha1) + '_dimD_' + str(
         alpha3) + '_noise_level_' + str(alpha2)
 
-    pred = pd.read_csv('resutls_data/pred' + case + '_new.csv')
+    pred = pd.read_csv('data/pred' + case + '_new.csv')
     pred = np.reshape(pred.to_numpy(), (10, 2005, K, N + 1))
-    true = pd.read_csv('resutls_data/true.csv')
+    true = pd.read_csv('data/true.csv')
     true = np.reshape(true.to_numpy(), (10, 2005, K, N + 1))
 
     return pred, true
@@ -415,38 +415,38 @@ def load_from_file_1dim(alpha1, alpha2, alpha3, alpha4, type, case_coordinate):
         alpha3) + '_noise_level_' + str(alpha2) + '_fluxalpha_' + str(alpha4)
     if case_coordinate == 'x':
         if type == 'best':
-            pred = pd.read_csv('resutls_data/pred_1dim_' + case +
+            pred = pd.read_csv('data/pred_1dim_' + case +
                                '_new_no_embed.csv')
         if type == 'end':
-            pred = pd.read_csv('resutls_data/end_pred_1dim_' + case +
+            pred = pd.read_csv('data/end_pred_1dim_' + case +
                                '_new_no_embed.csv')
 
     if case_coordinate == 'no_x':
         if type == 'best':
-            pred = pd.read_csv('resutls_data/pred_1dim_' + case +
+            pred = pd.read_csv('data/pred_1dim_' + case +
                                '_new_no_embed_no_x.csv')
         if type == 'end':
-            pred = pd.read_csv('resutls_data/end_pred_1dim_' + case +
+            pred = pd.read_csv('data/end_pred_1dim_' + case +
                                '_new_no_embed_no_x.csv')
 
     if case_coordinate == 'average':
         if type == 'best':
-            pred = pd.read_csv('resutls_data/pred_1dim_' + case +
+            pred = pd.read_csv('data/pred_1dim_' + case +
                                '_new_no_embed_average_flux.csv')
         if type == 'end':
-            pred = pd.read_csv('resutls_data/end_pred_1dim_' + case +
+            pred = pd.read_csv('data/end_pred_1dim_' + case +
                                '_new_no_embed_average_flux.csv')
 
     if case_coordinate == 'no_embed_receivers':
         if type == 'best':
-            pred = pd.read_csv('resutls_data/pred_1dim_' + case +
+            pred = pd.read_csv('data/pred_1dim_' + case +
                                '_new_no_embed_receivers.csv')
         if type == 'end':
-            pred = pd.read_csv('resutls_data/end_pred_1dim_' + case +
+            pred = pd.read_csv('data/end_pred_1dim_' + case +
                                '_new_no_embed_receivers.csv')
 
     pred = np.reshape(pred.to_numpy(), (10, 2005, K, N + 1))
-    true = pd.read_csv('resutls_data/true.csv')
+    true = pd.read_csv('data/true.csv')
     true = np.reshape(true.to_numpy(), (10, 2005, K, N + 1))
 
     return pred, true
@@ -470,9 +470,9 @@ def all_time_step_error(pred, true):
 all_time_step_error_batch = vmap(all_time_step_error, in_axes=(1, 1))
 
 
-def MSE_Error_at_time(alpha1, alpha2, alpha3, alpha4):
-    pred, true = load_from_file(alpha1, alpha2, alpha3, alpha4)
-    return all_time_step_error_batch(pred, true)[1:]
+# def MSE_Error_at_time(alpha1, alpha2, alpha3, alpha4):
+#     pred, true = load_from_file(alpha1, alpha2, alpha3, alpha4)
+#     return all_time_step_error_batch(pred, true)[1:]
 
 
 def MSE_Error_at_time_1dim(alpha1, alpha2, alpha3, alpha4, type,
@@ -482,11 +482,11 @@ def MSE_Error_at_time_1dim(alpha1, alpha2, alpha3, alpha4, type,
     return all_time_step_error_batch(pred, true)[1:]
 
 
-MSE_Error_at_time_1dim(0., 0.0, 64, 1., 'best', 'no_embed_receivers')
+MSE_Error_at_time_1dim(0., 0.0, 256, 1., 'best', 'no_embed_receivers')
 
 plt.figure(figsize=(10, 6))
 
-alpha1, alpha2, alpha3, alpha4 = 0., 0.0, 64, 1.
+alpha1, alpha2, alpha3, alpha4 = 0., 0.0, 256, 1.
 plt.plot(MSE_Error_at_time_1dim(alpha1, alpha2, alpha3, alpha4, 'best',
                                 'no_embed_receivers'),
          linestyle='-',
@@ -497,27 +497,27 @@ plt.plot(MSE_Error_at_time_1dim(alpha1, alpha2, alpha3, alpha4, 'best',
          label='1 dim: '
          r'$\alpha=0$' + ' D=' + str(alpha3) + r', $S = 1$')
 
-alpha1, alpha2, alpha3, alpha4 = 1e5, 0.0, 128, 0
-plt.plot(MSE_Error_at_time(alpha1, alpha2, alpha3, alpha4),
-         linestyle='-',
-         color='b',
-         marker='x',
-         dashes=(1, 1),
-         markevery=20,
-         ms=5,
-         label='Embed: '
-         r'$\alpha=10^5$' + ' D=' + str(alpha3) + r', $S = 1$')
+# alpha1, alpha2, alpha3, alpha4 = 1e5, 0.0, 256, 0
+# plt.plot(MSE_Error_at_time(alpha1, alpha2, alpha3, alpha4),
+#          linestyle='-',
+#          color='b',
+#          marker='x',
+#          dashes=(1, 1),
+#          markevery=20,
+#          ms=5,
+#          label='Embed: '
+#          r'$\alpha=10^5$' + ' D=' + str(alpha3) + r', $S = 1$')
 
-alpha1, alpha2, alpha3, alpha4 = 0., 0.0, 128, 0
-plt.plot(MSE_Error_at_time(alpha1, alpha2, alpha3, alpha4),
-         linestyle='-',
-         color='b',
-         marker='o',
-         dashes=(1, 1),
-         markevery=20,
-         ms=5,
-         label='Embed: '
-         r'$\alpha=0$' + ' D=' + str(alpha3) + r', $S = 1$')
+# alpha1, alpha2, alpha3, alpha4 = 0., 0.0, 256, 0
+# plt.plot(MSE_Error_at_time(alpha1, alpha2, alpha3, alpha4),
+#          linestyle='-',
+#          color='b',
+#          marker='o',
+#          dashes=(1, 1),
+#          markevery=20,
+#          ms=5,
+#          label='Embed: '
+#          r'$\alpha=0$' + ' D=' + str(alpha3) + r', $S = 1$')
 
 # plt.xticks([0, 41, 200, 400])
 plt.ylim([1e-8, 1e-1])
@@ -587,20 +587,20 @@ def plot_figures(alpha1, alpha2, alpha3, alpha4, Nt, sample):
 
     filename = 'Samples_no_embed_Dim_D_' + str(alpha1) + '_batchsize_' + str(
         alpha2) + '_sequence_' + str(alpha3)
-    plt.show()
-    # plt.savefig('../../../../Overleaf_repos/Graph_Network_DG/Figs/Wave_eq/' + filename + '.pdf', bbox_inches='tight')
-    # plt.close()
+    # plt.show()
+    plt.savefig('figs/wave_adv1d/' + filename + '.pdf', bbox_inches='tight')
+    plt.close()
 
 
 Nt = 1000
 sample = 9
-plot_figures(0., 0.0, 64, 1., Nt, sample)
-# plot_figures(1e5, 0.0, 128, 10, Nt, sample)
-# plot_figures(1e5, 0.0, 128, Nt, sample)
+plot_figures(0., 0.0, 256, 1., Nt, sample)
+# plot_figures(1e5, 0.0, 256, 10, Nt, sample)
+# plot_figures(1e5, 0.0, 256, Nt, sample)
 # plot_figures(0., 0.0, 256, Nt, sample)
 # plot_figures(1e5, 0.0, 256, Nt, sample)
 
-pred_sols
+print(pred_sols)
 
 Nt = 400
 sample = 9
@@ -660,4 +660,7 @@ plt.legend(loc='best')
 
 filename = 'Samples_no_embed_Dim_D_' + str(alpha1) + '_batchsize_' + str(
     alpha2) + '_sequence_' + str(alpha3)
-plt.show()
+
+# plt.show()
+plt.savefig('figs/wave_adv1d/' + filename + '.png', bbox_inches='tight')
+plt.close()
