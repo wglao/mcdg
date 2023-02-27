@@ -132,15 +132,23 @@ def generate_data(u, Nsteps):
 generate_data_batch = vmap(generate_data, in_axes=(0, None))
 
 
-def generate_delta(x, coefs):
-  coefs = np.sort(np.abs(coefs))
-  x1, umax, x2 = coefs
-  umax = 5*umax
+def generate_delta(coefs, x):
+  coefs = jnp.sort(jnp.abs(coefs))
+  x1, x2, umax = coefs
+  x1 = jnp.where(x1 > 1, x1 - 1, x1)
+  x2 = jnp.where(x2 > 1, 1 - x1, x2)
+  x1, x2 = jnp.sort(jnp.array([x1, x2]))
+  umax *= 5
   xpeak = (x1+x2) / 2
+#   u = x.copy()
+#   u = u.at[x <= x1].set(1)
+#   u = u.at[x >= x2].set(1)
+#   u = u.at[x > x1 and
+#            x < x2].set(umax - 2*(umax-1)*
+#                        (jnp.abs(x[x > x1 and x < x2] - xpeak) / (x2-x1)))
+  u = jnp.where(x <= x1, jnp.ones_like(x), jnp.where(x >= x2, jnp.ones_like(x),
+                umax - 2*(umax-1)*(jnp.abs(x - xpeak) / (x2-x1))))
 
-  u = np.where(x <= x1, np.ones_like(x), np.where(x >= x2), np.ones_like(x),
-               umax - 2*(umax-1)*(np.abs(x - xpeak) / (x2-x1)))
-  
   return u
 
 
@@ -148,7 +156,7 @@ def generate_delta(x, coefs):
 print('Generating train data ......................')
 coeffs_train = random.normal(train_seed, (num_train, modes))
 # u_batch_train = np.einsum('bi, ikl -> bkl', coeffs_train, Basis)
-u_batch_train = vmap(generate_delta, in_axes=(None, 0))(x, coeffs_train)
+u_batch_train = vmap(generate_delta, in_axes=(0, None))(coeffs_train, jnp.array(x))
 train_data = generate_data_batch(u_batch_train, nt_step_train)
 print(train_data.shape)
 print(train_data.max())
@@ -162,7 +170,7 @@ Solution_samples_array.to_csv(
 print('Generating test data ......................')
 coeffs_test = random.normal(test_seed, (num_test, modes))
 # u_batch_test = np.einsum('bi, ikl -> bkl', coeffs_test, Basis)
-u_batch_test = vmap(generate_delta, in_axes=(None, 0))(x, coeffs_test)
+u_batch_test = vmap(generate_delta, in_axes=(0, None))(coeffs_test, jnp.array(x))
 test_data = generate_data_batch(u_batch_test, nt_step_test)
 print(test_data.shape)
 print(test_data.max())
