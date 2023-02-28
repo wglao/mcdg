@@ -52,7 +52,7 @@ Nfaces = 2
 a = 1
 alpha = 1
 
-modes = 3
+modes = 6
 Basis = np.zeros((modes, Np, K))
 # for i in range(1, int(modes/2) + 1):
 #     Basis[2*i-2, :] = np.sin(np.pi * 2 * i * x)
@@ -83,7 +83,7 @@ def AdvecRHS1D(u):
   u_transpose = u.T.flatten()
   nx_transpose = nx.T.flatten()
   # form field differences at faces
-  alpha = 0     # <-- 0 = upwind, 1 = central
+  alpha = 0  # <-- 0 = upwind, 1 = central
   du_transpose = (u_transpose[vmapM] -
                   u_transpose[vmapP])*(nx_transpose -
                                        (1-alpha)*np.abs(nx_transpose)) / 2
@@ -146,16 +146,29 @@ def get_initial(coefs, x):
 
 def generate_delta(coefs, x):
   coefs = jnp.sort(jnp.abs(coefs))
-  x1, x2, umax = coefs
-  x1 = jnp.where(x1 > 1, x1 - 1, x1)
-  x2 = jnp.where(x2 > 1, 1 - x1, x2)
+  x1, x3, x2, x4, peak1, peak2 = coefs
+  x1 = jnp.where(x1 > 0.5, x1 / 3, x1)
+  x2 = jnp.where(x2 > 0.5, (x3+0.5) / 2, x2)
   x1, x2 = jnp.sort(jnp.array([x1, x2]))
-  umax *= 5
-  xpeak = (x1+x2) / 2
-  u = jnp.where(x <= x1, jnp.ones_like(x), jnp.where(x >= x2, jnp.ones_like(x),
-                umax - 2*(umax-1)*(jnp.abs(x - xpeak) / (x2-x1))))
+  x3 = jnp.where(x3 > 1, x2 + 0.25, x3)
+  x4 = jnp.where(x4 > 1, (x3+1) / 2, x4)
+  x3, x4 = jnp.sort(jnp.array([x3, x4]))
+  peak1 *= 5
+  peak2 *= 5
+  xpeak1 = (x1+x2) / 2
+  xpeak2 = (x3+x4) / 2
+  u = jnp.where(
+      x <= x1, jnp.ones_like(x),
+      jnp.where(
+          x <= x2, peak1 - 2*(peak1-1)*(jnp.abs(x - xpeak1) / (x2-x1)),
+          jnp.where(
+              x <= x3, jnp.ones_like(x),
+              jnp.where(x <= x4,
+                        peak2 - 2*(peak2-1)*(jnp.abs(x - xpeak2) / (x4-x3)),
+                        jnp.ones_like(x)))))
 
   return u
+
 
 ### Generate train data
 print('Generating train data ......................')
