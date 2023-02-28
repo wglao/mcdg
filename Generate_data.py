@@ -83,7 +83,7 @@ def AdvecRHS1D(u):
   u_transpose = u.T.flatten()
   nx_transpose = nx.T.flatten()
   # form field differences at faces
-  alpha = 1
+  alpha = 0     # <-- 0 = upwind, 1 = central
   du_transpose = (u_transpose[vmapM] -
                   u_transpose[vmapP])*(nx_transpose -
                                        (1-alpha)*np.abs(nx_transpose)) / 2
@@ -132,6 +132,18 @@ def generate_data(u, Nsteps):
 generate_data_batch = vmap(generate_data, in_axes=(0, None))
 
 
+def get_initial(coefs, x):
+  coefs = jnp.sort(jnp.abs(coefs))
+  p1, rho1, p4, rho4 = coefs
+  u = jnp.concatenate(jnp.expand_dims(x, -1), jnp.zeros((*x.shape, 3)), axis=-1)
+  u = u.at[:, :, 1].set(
+      jnp.where(x <= 0.5, jnp.full_like(x, rho4), jnp.full_like(x, rho1)))
+  u = u.at[:, :, 3].set(
+      jnp.where(x <= 0.5, jnp.full_like(x, p4), jnp.full_like(x, p1)))
+
+  return u
+
+
 def generate_delta(coefs, x):
   coefs = jnp.sort(jnp.abs(coefs))
   x1, x2, umax = coefs
@@ -140,23 +152,17 @@ def generate_delta(coefs, x):
   x1, x2 = jnp.sort(jnp.array([x1, x2]))
   umax *= 5
   xpeak = (x1+x2) / 2
-#   u = x.copy()
-#   u = u.at[x <= x1].set(1)
-#   u = u.at[x >= x2].set(1)
-#   u = u.at[x > x1 and
-#            x < x2].set(umax - 2*(umax-1)*
-#                        (jnp.abs(x[x > x1 and x < x2] - xpeak) / (x2-x1)))
   u = jnp.where(x <= x1, jnp.ones_like(x), jnp.where(x >= x2, jnp.ones_like(x),
                 umax - 2*(umax-1)*(jnp.abs(x - xpeak) / (x2-x1))))
 
   return u
 
-
 ### Generate train data
 print('Generating train data ......................')
 coeffs_train = random.normal(train_seed, (num_train, modes))
 # u_batch_train = np.einsum('bi, ikl -> bkl', coeffs_train, Basis)
-u_batch_train = vmap(generate_delta, in_axes=(0, None))(coeffs_train, jnp.array(x))
+u_batch_train = vmap(
+    generate_delta, in_axes=(0, None))(coeffs_train, jnp.array(x))
 train_data = generate_data_batch(u_batch_train, nt_step_train)
 print(train_data.shape)
 print(train_data.max())
@@ -170,7 +176,8 @@ Solution_samples_array.to_csv(
 print('Generating test data ......................')
 coeffs_test = random.normal(test_seed, (num_test, modes))
 # u_batch_test = np.einsum('bi, ikl -> bkl', coeffs_test, Basis)
-u_batch_test = vmap(generate_delta, in_axes=(0, None))(coeffs_test, jnp.array(x))
+u_batch_test = vmap(
+    generate_delta, in_axes=(0, None))(coeffs_test, jnp.array(x))
 test_data = generate_data_batch(u_batch_test, nt_step_test)
 print(test_data.shape)
 print(test_data.max())

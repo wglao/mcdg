@@ -14,6 +14,7 @@ NODE = args.node
 GPU_index = args.GPU_index
 
 import os
+
 os.environ["CUDA_VISIBLE_DEVICES"] = str(GPU_index)
 
 from functools import partial
@@ -62,7 +63,7 @@ num_batches = int(num_complete_batches) + int(bool(leftover))
 # num_epochs = 10
 # wandb_upload = False
 
-proj = partial(os.path.join,os.environ["PROJ"])
+proj = partial(os.path.join, os.environ["PROJ"])
 
 # In time space
 N = int(np.loadtxt(proj('MATLAB/N.txt'), delimiter=','))
@@ -110,18 +111,18 @@ if wandb_upload:
 #! 1. Loading data by pandas
 print('='*20 + ' >>')
 print('Loading train data ...')
-Train_data = pd.read_csv(proj('data/Train_noise_') + str(noise_level) + '_d_' +
-                         str(num_train) + '_Nt_' + str(nt_step_train) + '_K_' +
-                         str(K) + '_Np_' + str(N) + '.csv')
+Train_data = pd.read_csv(
+    proj('data/Train_noise_') + str(noise_level) + '_d_' + str(num_train) +
+    '_Nt_' + str(nt_step_train) + '_K_' + str(K) + '_Np_' + str(N) + '.csv')
 Train_data = np.reshape(Train_data.to_numpy(), (num_train, nt_step_train, K*Np))
 
 print(Train_data.shape)
 print('='*20 + ' >>')
 print('Loading test data ...')
 
-Test_data = pd.read_csv(proj('data/Test_d_') + str(num_test) + '_Nt_' +
-                        str(nt_step_test) + '_K_' + str(K) + '_Np_' + str(N) +
-                        '.csv')
+Test_data = pd.read_csv(
+    proj('data/Test_d_') + str(num_test) + '_Nt_' + str(nt_step_test) + '_K_' +
+    str(K) + '_Np_' + str(N) + '.csv')
 Test_data = np.reshape(Test_data.to_numpy(), (num_test, nt_step_test, K*Np))
 
 print(Test_data.shape)
@@ -398,11 +399,13 @@ def body_fun(i, args):
 
 
 def run_epoch(params, opt_state, data):
-  params, opt_state, _ = lax.fori_loop(0, num_batches, body_fun, (params, opt_state, data))
+  params, opt_state, _ = lax.fori_loop(0, num_batches, body_fun,
+                                       (params, opt_state, data))
   return params
 
 
-def TrainModel(train_data, test_data, num_epochs, params, opt_state, wandb_upload):
+def TrainModel(train_data, test_data, num_epochs, params, opt_state,
+               wandb_upload):
 
   test_accuracy_min = 100
   epoch_min = -1
@@ -432,9 +435,10 @@ def TrainModel(train_data, test_data, num_epochs, params, opt_state, wandb_uploa
 
     if (wandb_upload) & (epoch % 5000 == 0):  # Print MSE every 100 epochs
       wandb.log({
+          "Epoch": epoch,
           "Train loss": float(train_loss),
           "Test Error": float(test_accuracy),
-          'TEST MIN': float(test_accuracy_min)
+          "TEST MIN": float(test_accuracy_min)
       })
       # trained_params = optimizers.unpack_optimizer_state(optimal_opt_state)
       pickle.dump(best_params, open(proj('Network/Best_') + filename, "wb"))
