@@ -81,20 +81,20 @@ def load_plotfunction(alpha1, alpha2, alpha3, alpha4, type):
 
     noise_level = alpha2
 
-    filename = 'Adv_delta_DG_GNN_NO_EMBED_receiver_flux_dim' + str(
+    filename = 'Adv_2delta_DG_GNN_NO_EMBED_receiver_flux_dim' + str(
         int(alpha3)) + 'MCalpha_' + str(mc_alpha) + '_noise_' + str(
             noise_level) + '_lr_' + str(learning_rate) + '_batch_' + str(
                 batch_size) + '_nseq_' + str(n_seq) + '_num_epochs_' + str(
                     num_epochs)
 
     #! 1. Loading data by pandas
-    Test_data = pd.read_csv('../data/Test_d_' + str(num_test) + '_Nt_' +
+    Test_data = pd.read_csv('../data/2delta/Test_d_' + str(num_test) + '_Nt_' +
                             str(nt_step_test) + '_K_' + str(K) + '_Np_' +
                             str(N) + '.csv')
     Test_data = np.reshape(Test_data.to_numpy(),
                            (num_test, nt_step_test, K * Np))
 
-    Test_data_2 = pd.read_csv('../data/Test_d_' + str(num_test) + '_Nt_' +
+    Test_data_2 = pd.read_csv('../data/2delta/Test_d_' + str(num_test) + '_Nt_' +
                               str(401) + '_K_' + str(K) + '_Np_' + str(N) +
                               '.csv')
     Test_data_2 = np.reshape(Test_data_2.to_numpy(), (num_test, 401, K * Np))
@@ -360,7 +360,7 @@ best_params, neural_solver, Test_data, Test_data_2, K, N, single_forward_pass, p
 
 # Test_data[:,100,:] - Test_data_2[:,100,:]
 Solution_samples_array = pd.DataFrame({'samples': Test_data.flatten()})
-Solution_samples_array.to_csv('data/delta_adv1d/true.csv', index=False)
+Solution_samples_array.to_csv('data/2delta_adv1d/true.csv', index=False)
 
 
 def save_to_file(alpha1, alpha2, alpha3, alpha4, type):
@@ -373,12 +373,12 @@ def save_to_file(alpha1, alpha2, alpha3, alpha4, type):
         alpha3) + '_noise_level_' + str(alpha2) + '_fluxalpha_' + str(alpha4)
 
     if type == 'best':
-        Solution_samples_array.to_csv('data/delta_adv1d/pred_1dim_' + case +
+        Solution_samples_array.to_csv('data/2delta_adv1d/pred_1dim_' + case +
                                       '_new_no_embed_receivers.csv',
                                       index=False)
 
     if type == 'end':
-        Solution_samples_array.to_csv('data/delta_adv1d/end_pred_1dim_' + case +
+        Solution_samples_array.to_csv('data/2delta_adv1d/end_pred_1dim_' + case +
                                       '_new_no_embed_receivers.csv',
                                       index=False)
 
@@ -395,9 +395,9 @@ def load_from_file(alpha1, alpha2, alpha3, alpha4):
     case = '_alpha_' + str(alpha1) + '_dimD_' + str(
         alpha3) + '_noise_level_' + str(alpha2)
 
-    pred = pd.read_csv('data/delta_adv1d/pred' + case + '_new.csv')
+    pred = pd.read_csv('data/2delta_adv1d/pred' + case + '_new.csv')
     pred = np.reshape(pred.to_numpy(), (10, 2005, K, N + 1))
-    true = pd.read_csv('data/delta_adv1d/true.csv')
+    true = pd.read_csv('data/2delta_adv1d/true.csv')
     true = np.reshape(true.to_numpy(), (10, 2005, K, N + 1))
 
     return pred, true
@@ -411,38 +411,38 @@ def load_from_file_1dim(alpha1, alpha2, alpha3, alpha4, type, case_coordinate):
         alpha3) + '_noise_level_' + str(alpha2) + '_fluxalpha_' + str(alpha4)
     if case_coordinate == 'x':
         if type == 'best':
-            pred = pd.read_csv('data/delta_adv1d/pred_1dim_' + case +
+            pred = pd.read_csv('data/2delta_adv1d/pred_1dim_' + case +
                                '_new_no_embed.csv')
         if type == 'end':
-            pred = pd.read_csv('data/delta_adv1d/end_pred_1dim_' + case +
+            pred = pd.read_csv('data/2delta_adv1d/end_pred_1dim_' + case +
                                '_new_no_embed.csv')
 
     if case_coordinate == 'no_x':
         if type == 'best':
-            pred = pd.read_csv('data/delta_adv1d/pred_1dim_' + case +
+            pred = pd.read_csv('data/2delta_adv1d/pred_1dim_' + case +
                                '_new_no_embed_no_x.csv')
         if type == 'end':
-            pred = pd.read_csv('data/delta_adv1d/end_pred_1dim_' + case +
+            pred = pd.read_csv('data/2delta_adv1d/end_pred_1dim_' + case +
                                '_new_no_embed_no_x.csv')
 
     if case_coordinate == 'average':
         if type == 'best':
-            pred = pd.read_csv('data/delta_adv1d/pred_1dim_' + case +
+            pred = pd.read_csv('data/2delta_adv1d/pred_1dim_' + case +
                                '_new_no_embed_average_flux.csv')
         if type == 'end':
-            pred = pd.read_csv('data/delta_adv1d/end_pred_1dim_' + case +
+            pred = pd.read_csv('data/2delta_adv1d/end_pred_1dim_' + case +
                                '_new_no_embed_average_flux.csv')
 
     if case_coordinate == 'no_embed_receivers':
         if type == 'best':
-            pred = pd.read_csv('data/delta_adv1d/pred_1dim_' + case +
+            pred = pd.read_csv('data/2delta_adv1d/pred_1dim_' + case +
                                '_new_no_embed_receivers.csv')
         if type == 'end':
-            pred = pd.read_csv('data/delta_adv1d/end_pred_1dim_' + case +
+            pred = pd.read_csv('data/2delta_adv1d/end_pred_1dim_' + case +
                                '_new_no_embed_receivers.csv')
 
     pred = np.reshape(pred.to_numpy(), (10, 2005, K, N + 1))
-    true = pd.read_csv('data/delta_adv1d/true.csv')
+    true = pd.read_csv('data/2delta_adv1d/true.csv')
     true = np.reshape(true.to_numpy(), (10, 2005, K, N + 1))
 
     return pred, true
@@ -584,7 +584,7 @@ def plot_figures(alpha1, alpha2, alpha3, alpha4, Nt, sample):
     filename = 'Samples_no_embed_Dim_D_' + str(alpha1) + '_batchsize_' + str(
         alpha2) + '_sequence_' + str(alpha3)
     # plt.show()
-    plt.savefig('figs/delta_adv1d/' + filename + '.pdf', bbox_inches='tight')
+    plt.savefig('figs/2delta_adv1d/' + filename + '.pdf', bbox_inches='tight')
     plt.close()
 
 
@@ -658,5 +658,5 @@ filename = 'Samples_no_embed_Dim_D_' + str(alpha1) + '_batchsize_' + str(
     alpha2) + '_sequence_' + str(alpha3)
 
 # plt.show()
-plt.savefig('figs/delta_adv1d/' + filename + '.png', bbox_inches='tight')
+plt.savefig('figs/2delta_adv1d/' + filename + '.png', bbox_inches='tight')
 plt.close()

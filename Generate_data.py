@@ -146,13 +146,8 @@ def get_initial(coefs, x):
 
 def generate_delta(coefs, x):
   coefs = jnp.sort(jnp.abs(coefs))
-  x1, x3, x2, x4, peak1, peak2 = coefs
-  x1 = jnp.where(x1 > 0.5, x1 / 3, x1)
-  x2 = jnp.where(x2 > 0.5, (x3+0.5) / 2, x2)
-  x1, x2 = jnp.sort(jnp.array([x1, x2]))
-  x3 = jnp.where(x3 > 1, x2 + 0.25, x3)
-  x4 = jnp.where(x4 > 1, (x3+1) / 2, x4)
-  x3, x4 = jnp.sort(jnp.array([x3, x4]))
+  x1, x2, x3, x4, peak1, peak2 = coefs
+  x1, x2, x3, x4 = jnp.array([x1,x2,x3,x4])/jnp.max(coefs)
   peak1 *= 5
   peak2 *= 5
   xpeak1 = (x1+x2) / 2
@@ -181,7 +176,7 @@ print(train_data.shape)
 print(train_data.max())
 Solution_samples_array = pd.DataFrame({'samples': train_data.flatten()})
 Solution_samples_array.to_csv(
-    'data/Train_noise_' + str(0.00) + '_d_' + str(num_train) + '_Nt_' +
+    'data/2delta/Train_noise_' + str(0.00) + '_d_' + str(num_train) + '_Nt_' +
     str(nt_step_train) + '_K_' + str(K) + '_Np_' + str(N) + '.csv',
     index=False)
 
@@ -196,7 +191,7 @@ print(test_data.shape)
 print(test_data.max())
 Solution_samples_array = pd.DataFrame({'samples': test_data.flatten()})
 Solution_samples_array.to_csv(
-    'data/Test_d_' + str(num_test) + '_Nt_' + str(nt_step_test) + '_K_' +
+    'data/2delta/Test_d_' + str(num_test) + '_Nt_' + str(nt_step_test) + '_K_' +
     str(K) + '_Np_' + str(N) + '.csv',
     index=False)
 
@@ -207,7 +202,7 @@ test_data = generate_data_batch(u_batch_test, nt_test)
 print(test_data.shape)
 Solution_samples_array = pd.DataFrame({'samples': test_data.flatten()})
 Solution_samples_array.to_csv(
-    'data/Test_d_' + str(num_test) + '_Nt_' + str(nt_test) + '_K_' + str(K) +
+    'data/2delta/Test_d_' + str(num_test) + '_Nt_' + str(nt_test) + '_K_' + str(K) +
     '_Np_' + str(N) + '.csv',
     index=False)
 
@@ -245,7 +240,7 @@ train_data_noise = batch_sample_adding_noise(U_train, nosie_vec)
 
 train_noise = pd.DataFrame({'samples': train_data_noise.flatten()})
 train_noise.to_csv(
-    'data/Train_noise_' + str(noise_level) + '_d_' + str(num_train) + '_Nt_' +
+    'data/2delta/Train_noise_' + str(noise_level) + '_d_' + str(num_train) + '_Nt_' +
     str(nt_step_train) + '_K_' + str(K) + '_Np_' + str(N) + '.csv',
     index=False)
 
