@@ -8,13 +8,13 @@ parser.add_argument("--alpha1", default=0., type=float)
 parser.add_argument("--alpha2", default=0.0, type=float)
 parser.add_argument("--alpha3", default=10, type=int)
 parser.add_argument("--alpha4", default=0., type=float)
+parser.add_argument("--alpha5", default=0., type=float)
 args = parser.parse_args()
 
 NODE = args.node
 GPU_index = args.GPU_index
 
 import os
-
 os.environ["CUDA_VISIBLE_DEVICES"] = str(GPU_index)
 
 from functools import partial
@@ -51,6 +51,7 @@ learning_rate = 1e-3
 num_epochs = 1000000
 
 wandb_upload = bool(int(args.alpha4))
+adam_flag = bool(int(args.alpha5))
 
 batch_size = num_train if num_train == 2 else 10
 num_complete_batches, leftover = divmod(num_train, batch_size)
@@ -63,7 +64,7 @@ num_batches = int(num_complete_batches) + int(bool(leftover))
 # num_epochs = 10
 # wandb_upload = False
 
-proj = partial(os.path.join, os.environ["PROJ"])
+proj = partial(os.path.join,os.environ["PROJ"])
 
 # In time space
 N = int(np.loadtxt(proj('MATLAB/N.txt'), delimiter=','))
@@ -92,7 +93,7 @@ dt = 0.01
 
 noise_level = args.alpha2
 
-filename = 'Adv_delta_DG_GNN_NO_EMBED_receiver_flux_dim' + str(
+filename = 'Adv_2delta_DG_GNN_NO_EMBED_receiver_flux_dim' + str(
     int(args.alpha3)) + 'MCalpha_' + str(mc_alpha) + '_noise_' + str(
         noise_level) + '_lr_' + str(learning_rate) + '_batch_' + str(
             batch_size) + '_nseq_' + str(n_seq) + '_num_epochs_' + str(
@@ -101,7 +102,7 @@ filename = 'Adv_delta_DG_GNN_NO_EMBED_receiver_flux_dim' + str(
 if wandb_upload:
   import wandb
   wandb.init(project="DG_GNN_mcTangent_Approach", entity="wglao", name=filename)
-  wandb.config.problem = 'Advection/delta'
+  wandb.config.problem = 'Advection/2delta'
   wandb.config.method = 'receivers'
   wandb.config.batchsize = str(batch_size)
   wandb.config.Seq_ML = str(n_seq)
@@ -111,18 +112,18 @@ if wandb_upload:
 #! 1. Loading data by pandas
 print('='*20 + ' >>')
 print('Loading train data ...')
-Train_data = pd.read_csv(
-    proj('data/Train_noise_') + str(noise_level) + '_d_' + str(num_train) +
-    '_Nt_' + str(nt_step_train) + '_K_' + str(K) + '_Np_' + str(N) + '.csv')
+Train_data = pd.read_csv(proj('data/2delta/Train_noise_') + str(noise_level) + '_d_' +
+                         str(num_train) + '_Nt_' + str(nt_step_train) + '_K_' +
+                         str(K) + '_Np_' + str(N) + '.csv')
 Train_data = np.reshape(Train_data.to_numpy(), (num_train, nt_step_train, K*Np))
 
 print(Train_data.shape)
 print('='*20 + ' >>')
 print('Loading test data ...')
 
-Test_data = pd.read_csv(
-    proj('data/Test_d_') + str(num_test) + '_Nt_' + str(nt_step_test) + '_K_' +
-    str(K) + '_Np_' + str(N) + '.csv')
+Test_data = pd.read_csv(proj('data/2delta/Test_d_') + str(num_test) + '_Nt_' +
+                        str(nt_step_test) + '_K_' + str(K) + '_Np_' + str(N) +
+                        '.csv')
 Test_data = np.reshape(Test_data.to_numpy(), (num_test, nt_step_test, K*Np))
 
 print(Test_data.shape)
@@ -251,7 +252,10 @@ def net_fn(u):
 net = hk.without_apply_rng(hk.transform(net_fn))
 init_params = net.init(jax.random.PRNGKey(1), Train_data[0, 0, :])
 
-optimizer = optax.adam(learning_rate)
+if adam_flag:
+  optimizer = optax.adam(learning_rate)
+else:
+  optimizer = optax.eve(learning_rate)
 opt_state = optimizer.init(init_params)
 
 #! 3. Numerical solver + neural network solver (single time step)
@@ -390,22 +394,18 @@ def test_acc(params, Test_set):
 def body_fun(i, args):
   params, opt_state, data = args
   data_batch = lax.dynamic_slice_in_dim(data, i*batch_size, batch_size)
-  gradients = grad(LossmcDNN)(params, data_batch)
-  # loss, gradients = jax.value_and_grad(LossmcDNN)(params, opt_state, data_batch)
-  # optimizer.hyperparams['f'] = loss
+  gradients = grad(LossmcDNN)(params, data_batch)  
   updates, opt_state = optimizer.update(gradients, opt_state)
   params = optax.apply_updates(params, updates)
   return (params, opt_state, data)
 
 
 def run_epoch(params, opt_state, data):
-  params, opt_state, _ = lax.fori_loop(0, num_batches, body_fun,
-                                       (params, opt_state, data))
+  params, opt_state, _ = lax.fori_loop(0, num_batches, body_fun, (params, opt_state, data))
   return params
 
 
-def TrainModel(train_data, test_data, num_epochs, params, opt_state,
-               wandb_upload):
+def TrainModel(train_data, test_data, num_epochs, params, opt_state, wandb_upload):
 
   test_accuracy_min = 100
   epoch_min = -1
@@ -419,6 +419,8 @@ def TrainModel(train_data, test_data, num_epochs, params, opt_state,
     Epoch_training_1 = End_time_1 - Begin_time_1
 
     train_loss = LossmcDNN(params, train_data)
+    if not adam_flag:
+      opt_state.hyperparams['f'] = train_loss
     test_accuracy = test_acc(params, test_data)
 
     if test_accuracy_min >= test_accuracy:
@@ -435,10 +437,9 @@ def TrainModel(train_data, test_data, num_epochs, params, opt_state,
 
     if (wandb_upload) & (epoch % 5000 == 0):  # Print MSE every 100 epochs
       wandb.log({
-          "Epoch": epoch,
           "Train loss": float(train_loss),
           "Test Error": float(test_accuracy),
-          "TEST MIN": float(test_accuracy_min)
+          'TEST MIN': float(test_accuracy_min)
       })
       # trained_params = optimizers.unpack_optimizer_state(optimal_opt_state)
       pickle.dump(best_params, open(proj('Network/Best_') + filename, "wb"))
