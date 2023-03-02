@@ -29,10 +29,12 @@ def load_data(filename):
 LIFT = np.loadtxt('MATLAB/LIFT.txt', delimiter=',')
 Dr = np.loadtxt('MATLAB/Dr.txt', delimiter=',')
 Fscale = np.loadtxt('MATLAB/Fscale.txt', delimiter=',')
+invV = np.loadtxt('MATLAB/invV.txt', delimiter=',')
 rk4a = np.loadtxt('MATLAB/rk4a.txt', delimiter=',')
 rk4b = np.loadtxt('MATLAB/rk4b.txt', delimiter=',')
 rk4c = np.loadtxt('MATLAB/rk4c.txt', delimiter=',')
 rx = np.loadtxt('MATLAB/rx.txt', delimiter=',')
+V = np.loadtxt('MATLAB/V.txt', delimiter=',')
 vmapM = np.loadtxt('MATLAB/vmapM.txt', delimiter=',', dtype=int) - 1
 vmapP = np.loadtxt('MATLAB/vmapP.txt', delimiter=',', dtype=int) - 1
 vmapI = np.loadtxt('MATLAB/vmapI.txt', delimiter=',', dtype=int) - 1
@@ -79,6 +81,78 @@ dt = 0.01
 print(dt, Nsteps)
 
 
+def minmod(v: jnp.ndarray) -> jnp.ndarray:
+  m = v.shape[0]
+  m_fn = jnp.zeros((1, v.shape[1]))
+  s = jnp.sum(jnp.sign(v), axis=0) / m
+  # v_mask = jnp.where(jnp.abs(s)==1, v, 0)
+  cond = jnp.abs(s) == 1
+  m_fn = jnp.where(cond, s[cond]*jnp.min(jnp.abs(v[:, cond]), axis=0), m_fn)
+  return m_fn
+
+
+def slope_limit_lin(ul, xl, vm1, v0, vp1):
+  """Apply slope limiter on linear function ul(Np,1) on x(Np,1)
+    (vm1, v0, vp1) are cell averages left, center, right
+  """
+  h = xl[Np - 1, :] - xl[0, :]
+  x0 = jnp.ones((Np, 0))*(xl[0, :] + h/2)
+
+  hN = jnp.ones(Np - 1, 0)*h
+
+  # Limit function
+  ux = (2/hN)*(Dr*ul)
+
+  ulimit = jnp.ones((Np, 1))*v0 + (xl-x0)*jnp.ones(
+      (Np, 1))*minmod(jnp.array([ux[0, :], (vp1-v0) / h, (v0-vm1) / h]))
+
+  return ulimit
+
+
+def slope_limit_n(u):
+  """Apply slope limiter 
+    
+    .. math::
+        \Pi^N
+
+    to u assuming u is an Nth order polynomial
+  """
+  # Compute Cell Averages
+  uh = invV @ u
+  uh = uh.at[1:Np + 1, :].set(0)
+  uavg = V @ uh
+  v = uavg[0, :]
+
+  # Apply Slope Limiter
+  eps0 = 1e-8
+
+  # find end values of each element
+  ue1 = u[0, :]
+  ue2 = u[-1, :]
+
+  # find cell averages
+  vk = v
+  vkm1 = jnp.concatenate([jnp.expand_dims(v[0], 0), v[0:K]])
+  vkp1 = jnp.concatenate([v[1:K + 1], jnp.expand_dims(v[K + 1], 0)])
+
+  # apply reconstruction
+  ve1 = vk - minmod(jnp.array([vk - ue1, vk - vkm1, vkp1 - vk]))
+  ve2 = vk + minmod(jnp.array([ue2 - vk, vk - vkm1, vkp1 - vk]))
+  ids = jnp.logical_or(jnp.abs(ve1 - ue1) > eps0, jnp.abs(ve2 - ue2) > eps0)
+
+  # check if elements require limiting
+  # create piecewise linear solution for limiting
+  uhl = invV @ u[:, ids]
+  uhl = uhl.at[2:Np + 1, :].set(0)
+  ul = V @ uhl
+
+  # apply slope limiter
+  ulimit = jnp.where(
+      ids, slope_limit_lin(ul, x[:, ids], vkm1[ids], vk[ids], vkp1[ids]), u)
+
+  return ulimit
+
+
 def AdvecRHS1D(u):
   u_transpose = u.T.flatten()
   nx_transpose = nx.T.flatten()
@@ -123,6 +197,7 @@ def generate_data(u, Nsteps):
 
   for tstep in range(1, Nsteps):  # outer time step loop
     u = numerical_solver(u)
+    u = slope_limit_n(u)
     step_save += 1
     U_data = U_data.at[step_save, :].set((u.T).flatten())
 
@@ -147,7 +222,7 @@ def get_initial(coefs, x):
 def generate_delta(coefs, x):
   coefs = jnp.sort(jnp.abs(coefs))
   x1, x2, x3, x4, peak1, peak2 = coefs
-  x1, x2, x3, x4 = jnp.array([x1,x2,x3,x4])/jnp.max(coefs)
+  x1, x2, x3, x4 = jnp.array([x1, x2, x3, x4]) / jnp.max(coefs)
   peak1 *= 5
   peak2 *= 5
   xpeak1 = (x1+x2) / 2
@@ -202,8 +277,8 @@ test_data = generate_data_batch(u_batch_test, nt_test)
 print(test_data.shape)
 Solution_samples_array = pd.DataFrame({'samples': test_data.flatten()})
 Solution_samples_array.to_csv(
-    'data/2delta/Test_d_' + str(num_test) + '_Nt_' + str(nt_test) + '_K_' + str(K) +
-    '_Np_' + str(N) + '.csv',
+    'data/2delta/Test_d_' + str(num_test) + '_Nt_' + str(nt_test) + '_K_' +
+    str(K) + '_Np_' + str(N) + '.csv',
     index=False)
 
 # print('='*20 + ' TRAIN NOISE DATA () ' + '='*20)
@@ -240,8 +315,8 @@ train_data_noise = batch_sample_adding_noise(U_train, nosie_vec)
 
 train_noise = pd.DataFrame({'samples': train_data_noise.flatten()})
 train_noise.to_csv(
-    'data/2delta/Train_noise_' + str(noise_level) + '_d_' + str(num_train) + '_Nt_' +
-    str(nt_step_train) + '_K_' + str(K) + '_Np_' + str(N) + '.csv',
+    'data/2delta/Train_noise_' + str(noise_level) + '_d_' + str(num_train) +
+    '_Nt_' + str(nt_step_train) + '_K_' + str(K) + '_Np_' + str(N) + '.csv',
     index=False)
 
 senders = []
