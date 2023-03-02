@@ -191,6 +191,7 @@ def numerical_solver(u):
     rhsu = AdvecRHS1D(u)
     resu = rk4a[INTRK]*resu + dt*rhsu
     u = u + rk4b[INTRK]*resu
+    u = slope_limit_n(u)
   return u
 
 
@@ -201,7 +202,6 @@ def generate_data(u, Nsteps):
 
   for tstep in range(1, Nsteps):  # outer time step loop
     u = numerical_solver(u)
-    u = slope_limit_n(u)
     step_save += 1
     U_data = U_data.at[step_save, :].set((u.T).flatten())
 
