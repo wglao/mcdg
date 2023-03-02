@@ -23,30 +23,30 @@ nt_step_test = 401
 
 
 def load_data(filename):
-  np.loadtxt(filename, delimiter=',')
+  jnp.array(np.loadtxt(filename, delimiter=','))
 
 
-LIFT = np.loadtxt('MATLAB/LIFT.txt', delimiter=',')
-Dr = np.loadtxt('MATLAB/Dr.txt', delimiter=',')
-Fscale = np.loadtxt('MATLAB/Fscale.txt', delimiter=',')
-invV = np.loadtxt('MATLAB/invV.txt', delimiter=',')
-rk4a = np.loadtxt('MATLAB/rk4a.txt', delimiter=',')
-rk4b = np.loadtxt('MATLAB/rk4b.txt', delimiter=',')
-rk4c = np.loadtxt('MATLAB/rk4c.txt', delimiter=',')
-rx = np.loadtxt('MATLAB/rx.txt', delimiter=',')
-V = np.loadtxt('MATLAB/V.txt', delimiter=',')
-vmapM = np.loadtxt('MATLAB/vmapM.txt', delimiter=',', dtype=int) - 1
-vmapP = np.loadtxt('MATLAB/vmapP.txt', delimiter=',', dtype=int) - 1
-vmapI = np.loadtxt('MATLAB/vmapI.txt', delimiter=',', dtype=int) - 1
-vmapO = np.loadtxt('MATLAB/vmapO.txt', delimiter=',', dtype=int) - 1
-mapI = np.loadtxt('MATLAB/mapI.txt', delimiter=',', dtype=int) - 1
-mapO = np.loadtxt('MATLAB/mapO.txt', delimiter=',', dtype=int) - 1
-x = np.loadtxt('MATLAB/x.txt', delimiter=',')
+LIFT = jnp.array(np.loadtxt('MATLAB/LIFT.txt', delimiter=','))
+Dr = jnp.array(np.loadtxt('MATLAB/Dr.txt', delimiter=','))
+Fscale = jnp.array(np.loadtxt('MATLAB/Fscale.txt', delimiter=','))
+invV = jnp.array(np.loadtxt('MATLAB/invV.txt', delimiter=','))
+rk4a = jnp.array(np.loadtxt('MATLAB/rk4a.txt', delimiter=','))
+rk4b = jnp.array(np.loadtxt('MATLAB/rk4b.txt', delimiter=','))
+rk4c = jnp.array(np.loadtxt('MATLAB/rk4c.txt', delimiter=','))
+rx = jnp.array(np.loadtxt('MATLAB/rx.txt', delimiter=','))
+V = jnp.array(np.loadtxt('MATLAB/V.txt', delimiter=','))
+vmapM = jnp.array(np.loadtxt('MATLAB/vmapM.txt', delimiter=',', dtype=int) - 1)
+vmapP = jnp.array(np.loadtxt('MATLAB/vmapP.txt', delimiter=',', dtype=int) - 1)
+vmapI = jnp.array(np.loadtxt('MATLAB/vmapI.txt', delimiter=',', dtype=int) - 1)
+vmapO = jnp.array(np.loadtxt('MATLAB/vmapO.txt', delimiter=',', dtype=int) - 1)
+mapI = jnp.array(np.loadtxt('MATLAB/mapI.txt', delimiter=',', dtype=int) - 1)
+mapO = jnp.array(np.loadtxt('MATLAB/mapO.txt', delimiter=',', dtype=int) - 1)
+x = jnp.array(np.loadtxt('MATLAB/x.txt', delimiter=','))
 N = int(np.loadtxt('MATLAB/N.txt', delimiter=','))
 K = int(np.loadtxt('MATLAB/K.txt', delimiter=','))
-nx = (np.loadtxt('MATLAB/nx.txt', delimiter=','))
+nx = jnp.array(np.loadtxt('MATLAB/nx.txt', delimiter=','))
 
-EToE = (np.loadtxt('MATLAB/EToE.txt', delimiter=',') - 1).astype(int)
+EToE = jnp.array(np.loadtxt('MATLAB/EToE.txt', delimiter=',') - 1).astype(int)
 
 Np = N + 1
 Nfp = 1
@@ -85,9 +85,11 @@ def minmod(v: jnp.ndarray) -> jnp.ndarray:
   m = v.shape[0]
   m_fn = jnp.zeros((1, v.shape[1]))
   s = jnp.sum(jnp.sign(v), axis=0) / m
-  # v_mask = jnp.where(jnp.abs(s)==1, v, 0)
-  cond = jnp.abs(s) == 1
-  m_fn = jnp.where(cond, s[cond]*jnp.min(jnp.abs(v[:, cond]), axis=0), m_fn)
+  v_mask = jnp.array([
+      jnp.where(jnp.abs(s) == 1, jnp.abs(v[i, :]), jnp.max(jnp.abs(v)))
+      for i in range(v.shape[0])
+  ])
+  m_fn = jnp.where(jnp.abs(s) == 1, s*jnp.min(v_mask, axis=0), m_fn)
   return m_fn
 
 
@@ -96,12 +98,12 @@ def slope_limit_lin(ul, xl, vm1, v0, vp1):
     (vm1, v0, vp1) are cell averages left, center, right
   """
   h = xl[Np - 1, :] - xl[0, :]
-  x0 = jnp.ones((Np, 0))*(xl[0, :] + h/2)
+  x0 = jnp.ones((Np, 1))*(xl[0, :] + h/2)
 
-  hN = jnp.ones(Np - 1, 0)*h
+  hN = jnp.ones((Np, 1))*h
 
   # Limit function
-  ux = (2/hN)*(Dr*ul)
+  ux = (2/hN)*(Dr@ul)
 
   ulimit = jnp.ones((Np, 1))*v0 + (xl-x0)*jnp.ones(
       (Np, 1))*minmod(jnp.array([ux[0, :], (vp1-v0) / h, (v0-vm1) / h]))
@@ -132,23 +134,25 @@ def slope_limit_n(u):
 
   # find cell averages
   vk = v
-  vkm1 = jnp.concatenate([jnp.expand_dims(v[0], 0), v[0:K]])
-  vkp1 = jnp.concatenate([v[1:K + 1], jnp.expand_dims(v[K + 1], 0)])
+  vkm1 = jnp.concatenate([jnp.expand_dims(v[0], 0), v[0:K - 1]])
+  vkp1 = jnp.concatenate([v[1:K], jnp.expand_dims(v[K], 0)])
 
   # apply reconstruction
   ve1 = vk - minmod(jnp.array([vk - ue1, vk - vkm1, vkp1 - vk]))
   ve2 = vk + minmod(jnp.array([ue2 - vk, vk - vkm1, vkp1 - vk]))
-  ids = jnp.logical_or(jnp.abs(ve1 - ue1) > eps0, jnp.abs(ve2 - ue2) > eps0)
 
   # check if elements require limiting
+  ids = jnp.squeeze(
+      jnp.where(
+          jnp.logical_or(jnp.abs(ve1 - ue1) > eps0,
+                         jnp.abs(ve2 - ue2) > eps0), True, False))
   # create piecewise linear solution for limiting
-  uhl = invV @ u[:, ids]
+  uhl = invV @ jnp.squeeze(u)
   uhl = uhl.at[2:Np + 1, :].set(0)
   ul = V @ uhl
 
   # apply slope limiter
-  ulimit = jnp.where(
-      ids, slope_limit_lin(ul, x[:, ids], vkm1[ids], vk[ids], vkp1[ids]), u)
+  ulimit = jnp.where(ids, slope_limit_lin(ul, x, vkm1, vk, vkp1), u)
 
   return ulimit
 
