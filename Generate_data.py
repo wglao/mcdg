@@ -121,7 +121,7 @@ def slope_limit_n(u):
   """
   # Compute Cell Averages
   uh = invV @ u
-  uh = uh.at[1:Np + 1, :].set(0)
+  uh = uh.at[1:Np, :].set(0)
   uavg = V @ uh
   v = uavg[0, :]
 
@@ -134,21 +134,18 @@ def slope_limit_n(u):
 
   # find cell averages
   vk = v
-  vkm1 = jnp.concatenate([jnp.expand_dims(v[0], 0), v[0:K - 1]])
-  vkp1 = jnp.concatenate([v[1:K], jnp.expand_dims(v[K], 0)])
+  vkm1 = jnp.array([v[0], *v[0:K - 1]])
+  vkp1 = jnp.array([*v[1:K], v[K+1]])
 
   # apply reconstruction
   ve1 = vk - minmod(jnp.array([vk - ue1, vk - vkm1, vkp1 - vk]))
   ve2 = vk + minmod(jnp.array([ue2 - vk, vk - vkm1, vkp1 - vk]))
 
   # check if elements require limiting
-  ids = jnp.squeeze(
-      jnp.where(
-          jnp.logical_or(jnp.abs(ve1 - ue1) > eps0,
-                         jnp.abs(ve2 - ue2) > eps0), True, False))
+  ids = jnp.logical_or(jnp.abs(ve1 - ue1) > eps0, jnp.abs(ve2 - ue2) > eps0)
   # create piecewise linear solution for limiting
-  uhl = invV @ jnp.squeeze(u)
-  uhl = uhl.at[2:Np + 1, :].set(0)
+  uhl = invV @ u
+  uhl = uhl.at[2:Np, :].set(0)
   ul = V @ uhl
 
   # apply slope limiter
