@@ -66,7 +66,10 @@ FinalTime = 0.4
 
 # compute time step size
 xmin = np.min(np.abs(x[1, :] - x[2, :]))
-CFL = 0.75
+CFL = 1
+# speed of sound for characteristic wave speed
+gamma = 1.4
+c = jnp.sqrt(gamma)
 dt = CFL / (1)*xmin
 dt = .5*dt
 
@@ -154,38 +157,63 @@ def slope_limit_n(u):
   return ulimit
 
 
-def AdvecRHS1D(u):
-  u_transpose = u.T.flatten()
-  nx_transpose = nx.T.flatten()
-  # form field differences at faces
-  alpha = 0  # <-- 0 = upwind, 1 = central
-  du_transpose = (u_transpose[vmapM] -
-                  u_transpose[vmapP])*(nx_transpose -
-                                       (1-alpha)*np.abs(nx_transpose)) / 2
+def EulerRHS1D(rho, rhou, Ener):
+  """Evalueate RHS flux for 1D Euler Equations
+  """
+  # compute max velocity for LF Flux
+  gamma = 1.4
+  pres = (gamma-1)*(Ener - 0.5*(rhou)**2 / rho)
+  cvel = jnp.sqrt(gamma*pres / rho)
+  lm = jnp.abs(rhou / rho) + cvel
 
-  # Impose periodic conditions
-  # impose boundary condition at x=0
-  uin = u_transpose[-1]
-  du_transpose = du_transpose.at[mapI].set(
-      (u_transpose[vmapI] - uin)*(nx_transpose[mapI] -
-                                  (1-alpha)*np.abs(nx_transpose[mapI])) / 2)
+  # compute flux
+  rhof = rhou
+  rhouf = rhou**2 / rho + pres
+  Enerf = (Ener+pres)*rhou / rho
 
-  # impose boundary condition at x=1
-  uout = u_transpose[0]
-  du_transpose = du_transpose.at[mapO].set(
-      (uout - u_transpose[vmapO])*(nx_transpose[mapI] -
-                                   (1-alpha)*np.abs(nx_transpose[mapI])) / 2)
+  # compute jumps
+  drho = rho[vmapM] - rho[vmapP]
+  drhou = rhou[vmapM] - rhou[vmapP]
+  dEner = Ener[vmapM] - Ener[vmapP]
+  drhof = rhof[vmapM] - rhof[vmapP]
+  drhouf = rhouf[vmapM] - rhouf[vmapP]
+  dEnerf = Enerf[vmapM] - Enerf[vmapP]
+  LFc = jnp.max(lm[vmapM], lm[vmapP])
 
-  # compute right hand sides of the semi-discrete PDE
-  du = jnp.reshape(du_transpose, (K, Nfp*Nfaces)).T
-  rhsu = -rx*(Dr@u) + LIFT @ (Fscale*(du))
-  return rhsu
+  # compute flux at interfaces
+  drhof = nx*drhof/2 - LFc/2*drho
+  drhouf = nx*drhouf/2 - LFc/2*drhou
+  dEnerf = nx*dEnerf/2 - LFc/2*dEner
 
+  # BC's for shock tube
+  rhoin = rho[0]
+  rhouin = 0
+  pin = pres[0]
+  Enerin = Ener[-1]
+  rhoout = rho[-1]
+  rhouout = 0
+  pout = pres[-1]
+  Enerout = Ener[-1]
+
+  # set fluxes at inflow/outflow
+  rhofin = rhouin
+  rhoufin = rhouin**2 / rhoin + pin
+  Enerfin = (pin / (gamma-1) + 0.5*rhouin**2 / rhoin + pin)*rhouin / rhoin
+  lmI = lm[vmapI] / 2
+  nxI = nx[vmapI]
+  drho = drho.at[mapI].set(nxI @ (rhof[vmapI] - rhofin) / 2 -
+                           lmI @ (rho[vmapI] - rhoin))
+  drhou = drhou.at[mapI].set(nxI @ (rhouf[vmapI] - rhoufin) / 2 -
+                           lmI @ (rhou[vmapI] - rhouin))
+  dEner = dEner.at[mapI].set(nxI @ (Enerf[vmapI] - Enerfin) / 2 -
+                           lmI @ (Ener[vmapI] - Enerin))
+  
+  
 
 def numerical_solver(u):
   resu = jnp.zeros((Np, K))
   for INTRK in range(0, 5):
-    rhsu = AdvecRHS1D(u)
+    rhsu = EulerRHS1D(u)
     resu = rk4a[INTRK]*resu + dt*rhsu
     u = u + rk4b[INTRK]*resu
     u = slope_limit_n(u)
@@ -208,23 +236,14 @@ def generate_data(u, Nsteps):
 generate_data_batch = vmap(generate_data, in_axes=(0, None))
 
 
-def generate_delta(coefs, x):
+def get_shock_init(coefs, x):
   coefs = jnp.sort(jnp.abs(coefs))
-  x1, x2, x3, x4, peak1, peak2 = coefs
-  x1, x2, x3, x4 = jnp.array([x1, x2, x3, x4]) / jnp.max(coefs)
-  peak1 *= 5
-  peak2 *= 5
-  xpeak1 = (x1+x2) / 2
-  xpeak2 = (x3+x4) / 2
-  u = jnp.where(
-      x <= x1, jnp.ones_like(x),
-      jnp.where(
-          x <= x2, peak1 - 2*(peak1-1)*(jnp.abs(x - xpeak1) / (x2-x1)),
-          jnp.where(
-              x <= x3, jnp.ones_like(x),
-              jnp.where(x <= x4,
-                        peak2 - 2*(peak2-1)*(jnp.abs(x - xpeak2) / (x4-x3)),
-                        jnp.ones_like(x)))))
+  p1, rho1, p4, rho4 = coefs
+  u = jnp.concatenate(jnp.expand_dims(x, -1), jnp.zeros((*x.shape, 3)), axis=-1)
+  u = u.at[:, :, 1].set(
+      jnp.where(x <= 0.5, jnp.full_like(x, rho4), jnp.full_like(x, rho1)))
+  u = u.at[:, :, 3].set(
+      jnp.where(x <= 0.5, jnp.full_like(x, p4), jnp.full_like(x, p1)))
 
   return u
 
@@ -234,13 +253,13 @@ print('Generating train data ......................')
 coeffs_train = random.normal(train_seed, (num_train, modes))
 # u_batch_train = np.einsum('bi, ikl -> bkl', coeffs_train, Basis)
 u_batch_train = vmap(
-    generate_delta, in_axes=(0, None))(coeffs_train, jnp.array(x))
+    get_shock_init, in_axes=(0, None))(coeffs_train, jnp.array(x))
 train_data = generate_data_batch(u_batch_train, nt_step_train)
 print(train_data.shape)
 print(train_data.max())
 Solution_samples_array = pd.DataFrame({'samples': train_data.flatten()})
 Solution_samples_array.to_csv(
-    'data/2delta/Train_noise_' + str(0.00) + '_d_' + str(num_train) + '_Nt_' +
+    'data/shock/Train_noise_' + str(0.00) + '_d_' + str(num_train) + '_Nt_' +
     str(nt_step_train) + '_K_' + str(K) + '_Np_' + str(N) + '.csv',
     index=False)
 
@@ -249,7 +268,7 @@ print('Generating test data ......................')
 coeffs_test = random.normal(test_seed, (num_test, modes))
 # u_batch_test = np.einsum('bi, ikl -> bkl', coeffs_test, Basis)
 u_batch_test = vmap(
-    generate_delta, in_axes=(0, None))(coeffs_test, jnp.array(x))
+    get_shock_init, in_axes=(0, None))(coeffs_test, jnp.array(x))
 test_data = generate_data_batch(u_batch_test, nt_step_test)
 print(test_data.shape)
 print(test_data.max())
