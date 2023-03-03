@@ -21,7 +21,7 @@
 #       followed by "module help launcher".
 #----------------------------------------------------
 
-#SBATCH -J dg1d_adv           # Job name
+#SBATCH -J delta_adv           # Job name
 #SBATCH -o serial.o%j       # Name of stdout output file
 #SBATCH -e serial.e%j       # Name of stderr error file
 #SBATCH -p rtx              # Queue (partition) name

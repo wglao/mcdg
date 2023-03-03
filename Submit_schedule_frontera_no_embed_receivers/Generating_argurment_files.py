@@ -8,9 +8,9 @@ number_of_node = args.files
 number_of_GPU_per_node = args.GPU_per_node
 
 alpha_1 = [0, 1e5]
-alpha_2 = [0.0, 0.01]
-alpha_3 = [128, 256]
-alpha_4 = [0]
+alpha_2 = [0.0, 0.02]
+alpha_3 = [1, 256]
+alpha_4 = [1]
 
 LIST = []
 for a1 in alpha_1:
