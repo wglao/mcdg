@@ -67,9 +67,7 @@ FinalTime = 0.4
 # compute time step size
 xmin = np.min(np.abs(x[1, :] - x[2, :]))
 CFL = 1
-# speed of sound for characteristic wave speed
 gamma = 1.4
-c = jnp.sqrt(gamma)
 dt = CFL / (1)*xmin
 dt = .5*dt
 
@@ -161,7 +159,6 @@ def EulerRHS1D(rho, rhou, Ener):
   """Evalueate RHS flux for 1D Euler Equations
   """
   # compute max velocity for LF Flux
-  gamma = 1.4
   pres = (gamma-1)*(Ener - 0.5*(rhou)**2 / rho)
   cvel = jnp.sqrt(gamma*pres / rho)
   lm = jnp.abs(rhou / rho) + cvel
@@ -204,11 +201,29 @@ def EulerRHS1D(rho, rhou, Ener):
   drho = drho.at[mapI].set(nxI @ (rhof[vmapI] - rhofin) / 2 -
                            lmI @ (rho[vmapI] - rhoin))
   drhou = drhou.at[mapI].set(nxI @ (rhouf[vmapI] - rhoufin) / 2 -
-                           lmI @ (rhou[vmapI] - rhouin))
+                             lmI @ (rhou[vmapI] - rhouin))
   dEner = dEner.at[mapI].set(nxI @ (Enerf[vmapI] - Enerfin) / 2 -
-                           lmI @ (Ener[vmapI] - Enerin))
-  
-  
+                             lmI @ (Ener[vmapI] - Enerin))
+
+  rhofout = rhouout
+  rhoufout = rhouout**2 / rhoout + pout
+  Enerfout = (pout /
+              (gamma-1) + 0.5*rhouout**2 / rhoout + pout)*rhouout / rhoout
+  lmO = lm[vmapO] / 2
+  nxO = nx[mapO]
+  drho = drho.at[mapO].set(nxO @ (rhof[vmapO] - rhofout) / 2 -
+                           lmO @ (rho[vmapO] - rhoout))
+  drhou = drhou.at[mapO].set(nxO @ (rhouf[vmapO] - rhoufout) / 2 -
+                             lmO @ (rhou[vmapO] - rhouout))
+  dEner = dEner.at[mapO].set(nxO @ (Enerf[vmapO] - Enerfout) / 2 -
+                             lmO @ (Ener[vmapO] - Enerout))
+
+  # compute rhs of the PDEs
+  rhsrho = -rx*(Dr@rhof) + LIFT @ (Fscale*drhof)
+  rhsrhou = -rx*(Dr@rhouf) + LIFT @ (Fscale*drhouf)
+  rhsEner = -rx*(Dr@Enerf) + LIFT @ (Fscale*dEnerf)
+  return jnp.array([rhsrho, rhsrhou, rhsEner])
+
 
 def numerical_solver(u):
   resu = jnp.zeros((Np, K))
@@ -239,11 +254,13 @@ generate_data_batch = vmap(generate_data, in_axes=(0, None))
 def get_shock_init(coefs, x):
   coefs = jnp.sort(jnp.abs(coefs))
   p1, rho1, p4, rho4 = coefs
-  u = jnp.concatenate(jnp.expand_dims(x, -1), jnp.zeros((*x.shape, 3)), axis=-1)
-  u = u.at[:, :, 1].set(
-      jnp.where(x <= 0.5, jnp.full_like(x, rho4), jnp.full_like(x, rho1)))
-  u = u.at[:, :, 3].set(
-      jnp.where(x <= 0.5, jnp.full_like(x, p4), jnp.full_like(x, p1)))
+  # keep speed of sound below 1 for CFL
+  eps = 1e-8
+  p1 = jnp.where(p1>(rho1/gamma), rho1/gamma - eps, p1)
+  p4 = jnp.where(p4>(rho4/gamma), rho4/gamma - eps, p4)
+  u = jnp.zeros((*x.shape, 3))
+  u = u.at[:, :, 0].set(jnp.where(x <= 0.5, rho4, rho1))
+  u = u.at[:, :, 2].set(jnp.where(x <= 0.5, p4, p1))
 
   return u
 
@@ -254,6 +271,7 @@ coeffs_train = random.normal(train_seed, (num_train, modes))
 # u_batch_train = np.einsum('bi, ikl -> bkl', coeffs_train, Basis)
 u_batch_train = vmap(
     get_shock_init, in_axes=(0, None))(coeffs_train, jnp.array(x))
+bc_train = jnp.array([u_batch_train[..., 0], u_batch_train[..., -1]])
 train_data = generate_data_batch(u_batch_train, nt_step_train)
 print(train_data.shape)
 print(train_data.max())
