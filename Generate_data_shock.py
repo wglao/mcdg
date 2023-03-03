@@ -222,16 +222,31 @@ def EulerRHS1D(rho, rhou, Ener):
   rhsrho = -rx*(Dr@rhof) + LIFT @ (Fscale*drhof)
   rhsrhou = -rx*(Dr@rhouf) + LIFT @ (Fscale*drhouf)
   rhsEner = -rx*(Dr@Enerf) + LIFT @ (Fscale*dEnerf)
-  return jnp.array([rhsrho, rhsrhou, rhsEner])
+  return rhsrho, rhsrhou, rhsEner
 
 
 def numerical_solver(u):
-  resu = jnp.zeros((Np, K))
-  for INTRK in range(0, 5):
-    rhsu = EulerRHS1D(u)
-    resu = rk4a[INTRK]*resu + dt*rhsu
-    u = u + rk4b[INTRK]*resu
-    u = slope_limit_n(u)
+  rho, rhou, Ener = u
+  
+  # SSP RK 1
+  rhsrho, rhsrhou, rhsEner = EulerRHS1D(rho, rhou, Ener)
+  rho1 = slope_limit_n(rho + dt*rhsrho)
+  rhou1 = slope_limit_n(rhou + dt*rhsrhou)
+  Ener1 = slope_limit_n(Ener + dt*rhsEner)
+
+  # SSP RK 2
+  rhsrho, rhsrhou, rhsEner = EulerRHS1D(rho1, rhou1, Ener1)
+  rho2 = slope_limit_n((3*rho + rho1 + dt*rhsrho)/4)
+  rhou2 = slope_limit_n((3*rhou + rhou1 + dt*rhsrhou)/4)
+  Ener2 = slope_limit_n((3*Ener + Ener1 + dt*rhsEner)/4)
+
+  # SSP RK 3
+  rhsrho, rhsrhou, rhsEner = EulerRHS1D(rho1, rhou1, Ener1)
+  rho3 = slope_limit_n((rho + 2*rho2 + 2*dt*rhsrho)/3)
+  rhou3 = slope_limit_n((rhou + 2*rhou2 + 2*dt*rhsrhou)/3)
+  Ener3 = slope_limit_n((Ener + 2*Ener2 + 2*dt*rhsEner)/3)
+
+  u = jnp.array([rho3, rhou3, Ener3])
   return u
 
 
@@ -256,11 +271,11 @@ def get_shock_init(coefs, x):
   p1, rho1, p4, rho4 = coefs
   # keep speed of sound below 1 for CFL
   eps = 1e-8
-  p1 = jnp.where(p1>(rho1/gamma), rho1/gamma - eps, p1)
-  p4 = jnp.where(p4>(rho4/gamma), rho4/gamma - eps, p4)
+  p1 = jnp.where(p1 > (rho1 / gamma), rho1/gamma - eps, p1)
+  p4 = jnp.where(p4 > (rho4 / gamma), rho4/gamma - eps, p4)
   u = jnp.zeros((*x.shape, 3))
   u = u.at[:, :, 0].set(jnp.where(x <= 0.5, rho4, rho1))
-  u = u.at[:, :, 2].set(jnp.where(x <= 0.5, p4, p1))
+  u = u.at[:, :, 2].set(jnp.where(x <= 0.5, p4 / (gamma-1), p1 / (gamma-1)))
 
   return u
 
