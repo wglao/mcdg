@@ -70,26 +70,27 @@ CFL = 0.75
 dt = CFL / (1)*xmin
 dt = .5*dt
 
-print(dt)
+# print(dt)
 
 Nsteps = int(np.ceil(FinalTime / dt))
 dt = FinalTime / Nsteps
-dt = np.round(dt*100) / 100
+# dt = np.round(dt*100) / 100
 
-dt = 0.01
+# dt = 0.01
 
 print(dt, Nsteps)
 
 
 def minmod(v: jnp.ndarray) -> jnp.ndarray:
+  """Applies minmod to v
+  """
   m = v.shape[0]
-  m_fn = jnp.zeros((1, v.shape[1]))
   s = jnp.sum(jnp.sign(v), axis=0) / m
   v_mask = jnp.array([
-      jnp.where(jnp.abs(s) == 1, jnp.abs(v[i, :]), jnp.max(jnp.abs(v)))
+      jnp.where(jnp.abs(s) == 1, jnp.abs(v[i]), 0)
       for i in range(v.shape[0])
   ])
-  m_fn = jnp.where(jnp.abs(s) == 1, s*jnp.min(v_mask, axis=0), m_fn)
+  m_fn = s*jnp.min(v_mask, axis=0)
   return m_fn
 
 
@@ -97,16 +98,17 @@ def slope_limit_lin(ul, xl, vm1, v0, vp1):
   """Apply slope limiter on linear function ul(Np,1) on x(Np,1)
     (vm1, v0, vp1) are cell averages left, center, right
   """
+  # compute geometric measures
   h = xl[Np - 1, :] - xl[0, :]
   x0 = jnp.ones((Np, 1))*(xl[0, :] + h/2)
 
   hN = jnp.ones((Np, 1))*h
 
-  # Limit function
+  # limit function
   ux = (2/hN)*(Dr@ul)
 
   ulimit = jnp.ones((Np, 1))*v0 + (xl-x0)*jnp.ones(
-      (Np, 1))*minmod(jnp.array([ux[0, :], (vp1-v0) / h, (v0-vm1) / h]))
+      (Np, 1))*  minmod(jnp.array([ux[0, :], (vp1-v0) / h, (v0-vm1) / h]))
 
   return ulimit
 
@@ -135,7 +137,7 @@ def slope_limit_n(u):
   # find cell averages
   vk = v
   vkm1 = jnp.array([v[0], *v[0:K - 1]])
-  vkp1 = jnp.array([*v[1:K], v[K+1]])
+  vkp1 = jnp.array([*v[1:K], v[K + 1]])
 
   # apply reconstruction
   ve1 = vk - minmod(jnp.array([vk - ue1, vk - vkm1, vkp1 - vk]))
