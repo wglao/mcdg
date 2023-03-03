@@ -307,7 +307,7 @@ print(test_data.shape)
 print(test_data.max())
 Solution_samples_array = pd.DataFrame({'samples': test_data.flatten()})
 Solution_samples_array.to_csv(
-    'data/2delta/Test_d_' + str(num_test) + '_Nt_' + str(nt_step_test) + '_K_' +
+    'data/shock/Test_d_' + str(num_test) + '_Nt_' + str(nt_step_test) + '_K_' +
     str(K) + '_Np_' + str(N) + '.csv',
     index=False)
 
@@ -318,7 +318,7 @@ test_data = generate_data_batch(u_batch_test, nt_test)
 print(test_data.shape)
 Solution_samples_array = pd.DataFrame({'samples': test_data.flatten()})
 Solution_samples_array.to_csv(
-    'data/2delta/Test_d_' + str(num_test) + '_Nt_' + str(nt_test) + '_K_' +
+    'data/shock/Test_d_' + str(num_test) + '_Nt_' + str(nt_test) + '_K_' +
     str(K) + '_Np_' + str(N) + '.csv',
     index=False)
 
@@ -356,7 +356,7 @@ train_data_noise = batch_sample_adding_noise(U_train, nosie_vec)
 
 train_noise = pd.DataFrame({'samples': train_data_noise.flatten()})
 train_noise.to_csv(
-    'data/2delta/Train_noise_' + str(noise_level) + '_d_' + str(num_train) +
+    'data/shock/Train_noise_' + str(noise_level) + '_d_' + str(num_train) +
     '_Nt_' + str(nt_step_train) + '_K_' + str(K) + '_Np_' + str(N) + '.csv',
     index=False)
 

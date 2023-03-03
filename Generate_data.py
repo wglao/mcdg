@@ -13,8 +13,6 @@ test_seed = random.PRNGKey(1)
 # ### Data Generation Inputs
 num_train = 200
 num_test = 10
-nt_step_train = 41  # including the initial condition
-nt_step_test = 401
 
 # num_train = 2
 # num_test = 2
@@ -62,7 +60,7 @@ Basis = np.zeros((modes, Np, K))
 
 # Basis = jnp.asarray(Basis)
 
-FinalTime = 0.4
+FinalTime = 1
 
 # compute time step size
 xmin = np.min(np.abs(x[1, :] - x[2, :]))
@@ -74,6 +72,10 @@ dt = .5*dt
 
 Nsteps = int(np.ceil(FinalTime / dt))
 dt = FinalTime / Nsteps
+
+nt_step_train = int(np.floor(Nsteps/10))+1  # including the initial condition
+nt_step_test = Nsteps+1
+
 # dt = np.round(dt*100) / 100
 
 # dt = 0.01
@@ -260,17 +262,17 @@ Solution_samples_array.to_csv(
     index=False)
 
 ### Generate test data
-print('Generating test data ......................')
-nt_test = 401*5
-test_data = generate_data_batch(u_batch_test, nt_test)
-print(test_data.shape)
-Solution_samples_array = pd.DataFrame({'samples': test_data.flatten()})
-Solution_samples_array.to_csv(
-    'data/2delta/Test_d_' + str(num_test) + '_Nt_' + str(nt_test) + '_K_' +
-    str(K) + '_Np_' + str(N) + '.csv',
-    index=False)
+# print('Generating test data ......................')
+# nt_test = 401*5
+# test_data = generate_data_batch(u_batch_test, nt_test)
+# print(test_data.shape)
+# Solution_samples_array = pd.DataFrame({'samples': test_data.flatten()})
+# Solution_samples_array.to_csv(
+#     'data/2delta/Test_d_' + str(num_test) + '_Nt_' + str(nt_test) + '_K_' +
+#     str(K) + '_Np_' + str(N) + '.csv',
+#     index=False)
 
-# print('='*20 + ' TRAIN NOISE DATA () ' + '='*20)
+print('='*20 + ' TRAIN NOISE DATA () ' + '='*20)
 key_data_noise = random.PRNGKey(3)
 U_train = np.reshape(train_data, (num_train, nt_step_train, K, N + 1))
 nosie_vec = jax.random.normal(key_data_noise, U_train.shape)
