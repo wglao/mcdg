@@ -77,7 +77,7 @@ def load_plotfunction(alpha1, alpha2, alpha3, alpha4, type):
     dt = 0.01
 
     nt_step_train = 41
-    nt_step_test = 2005
+    nt_step_test = 401
 
     noise_level = alpha2
 
@@ -396,9 +396,9 @@ def load_from_file(alpha1, alpha2, alpha3, alpha4):
         alpha3) + '_noise_level_' + str(alpha2)
 
     pred = pd.read_csv('data/2delta_adv1d/pred' + case + '_new.csv')
-    pred = np.reshape(pred.to_numpy(), (10, 2005, K, N + 1))
+    pred = np.reshape(pred.to_numpy(), (10, 401, K, N + 1))
     true = pd.read_csv('data/2delta_adv1d/true.csv')
-    true = np.reshape(true.to_numpy(), (10, 2005, K, N + 1))
+    true = np.reshape(true.to_numpy(), (10, 401, K, N + 1))
 
     return pred, true
 
@@ -441,9 +441,9 @@ def load_from_file_1dim(alpha1, alpha2, alpha3, alpha4, type, case_coordinate):
             pred = pd.read_csv('data/2delta_adv1d/end_pred_1dim_' + case +
                                '_new_no_embed_receivers.csv')
 
-    pred = np.reshape(pred.to_numpy(), (10, 2005, K, N + 1))
+    pred = np.reshape(pred.to_numpy(), (10, 401, K, N + 1))
     true = pd.read_csv('data/2delta_adv1d/true.csv')
-    true = np.reshape(true.to_numpy(), (10, 2005, K, N + 1))
+    true = np.reshape(true.to_numpy(), (10, 401, K, N + 1))
 
     return pred, true
 
@@ -584,11 +584,11 @@ def plot_figures(alpha1, alpha2, alpha3, alpha4, Nt, sample):
     filename = 'Samples_no_embed_Dim_D_' + str(alpha1) + '_batchsize_' + str(
         alpha2) + '_sequence_' + str(alpha3)
     # plt.show()
-    plt.savefig('figs/2delta_adv1d/' + filename + '.pdf', bbox_inches='tight')
+    plt.savefig('figs/2delta_adv1d/' + filename + '_1.png', bbox_inches='tight')
     plt.close()
 
 
-Nt = 1000
+Nt = 597
 sample = 9
 plot_figures(0., 0.0, 256, 1., Nt, sample)
 # plot_figures(1e5, 0.0, 256, 10, Nt, sample)
@@ -598,10 +598,11 @@ plot_figures(0., 0.0, 256, 1., Nt, sample)
 
 print(pred_sols)
 
-Nt = 400
+Nt = 597
 sample = 9
 
 x = np.loadtxt('../MATLAB/x.txt', delimiter=',')
+plt.figure()
 
 for i in range(K):
     plt.plot(x[:, i],
