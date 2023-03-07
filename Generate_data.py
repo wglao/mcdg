@@ -52,7 +52,7 @@ Nfaces = 2
 a = 1
 alpha = 1
 
-modes = 6
+modes = 5
 Basis = np.zeros((modes, Np, K))
 # for i in range(1, int(modes/2) + 1):
 #     Basis[2*i-2, :] = np.sin(np.pi * 2 * i * x)
@@ -210,22 +210,19 @@ def generate_data(u, Nsteps):
 generate_data_batch = vmap(generate_data, in_axes=(0, None))
 
 
-def generate_delta(coefs, x):
+def get_initial(coefs, x):
   coefs = jnp.sort(jnp.abs(coefs))
-  x1, x2, x3, x4, peak1, peak2 = coefs
-  x1, x2, x3, x4 = jnp.array([x1, x2, x3, x4]) / jnp.max(coefs)
-  peak1 *= 5
-  peak2 *= 5
-  xpeak1 = (x1+x2) / 2
-  xpeak2 = (x3+x4) / 2
+  x1, x2, x3, x4, ptop = coefs
+  x1, x2, x3, x4 = jnp.array([x1, x2, x3, x4]) / ptop
+  ptop *= 5
   u = jnp.where(
       x <= x1, jnp.ones_like(x),
       jnp.where(
-          x <= x2, peak1 - 2*(peak1-1)*(jnp.abs(x - xpeak1) / (x2-x1)),
+          x <= x2, ptop - (ptop-1)*(jnp.abs(x2 - x) / (x2-x1)),
           jnp.where(
-              x <= x3, jnp.ones_like(x),
+              x <= x3, jnp.full_like(x, ptop),
               jnp.where(x <= x4,
-                        peak2 - 2*(peak2-1)*(jnp.abs(x - xpeak2) / (x4-x3)),
+                        ptop - (ptop-1)*(jnp.abs(x3 - x) / (x4-x3)),
                         jnp.ones_like(x)))))
 
   return u
@@ -236,13 +233,13 @@ print('Generating train data ......................')
 coeffs_train = random.normal(train_seed, (num_train, modes))
 # u_batch_train = np.einsum('bi, ikl -> bkl', coeffs_train, Basis)
 u_batch_train = vmap(
-    generate_delta, in_axes=(0, None))(coeffs_train, jnp.array(x))
+    get_initial, in_axes=(0, None))(coeffs_train, jnp.array(x))
 train_data = generate_data_batch(u_batch_train, nt_step_train)
 print(train_data.shape)
 print(train_data.max())
 Solution_samples_array = pd.DataFrame({'samples': train_data.flatten()})
 Solution_samples_array.to_csv(
-    'data/2delta/Train_noise_' + str(0.00) + '_d_' + str(num_train) + '_Nt_' +
+    'data/plateau/Train_noise_' + str(0.00) + '_d_' + str(num_train) + '_Nt_' +
     str(nt_step_train) + '_K_' + str(K) + '_Np_' + str(N) + '.csv',
     index=False)
 
@@ -251,13 +248,13 @@ print('Generating test data ......................')
 coeffs_test = random.normal(test_seed, (num_test, modes))
 # u_batch_test = np.einsum('bi, ikl -> bkl', coeffs_test, Basis)
 u_batch_test = vmap(
-    generate_delta, in_axes=(0, None))(coeffs_test, jnp.array(x))
+    get_initial, in_axes=(0, None))(coeffs_test, jnp.array(x))
 test_data = generate_data_batch(u_batch_test, nt_step_test)
 print(test_data.shape)
 print(test_data.max())
 Solution_samples_array = pd.DataFrame({'samples': test_data.flatten()})
 Solution_samples_array.to_csv(
-    'data/2delta/Test_d_' + str(num_test) + '_Nt_' + str(nt_step_test) + '_K_' +
+    'data/plateau/Test_d_' + str(num_test) + '_Nt_' + str(nt_step_test) + '_K_' +
     str(K) + '_Np_' + str(N) + '.csv',
     index=False)
 
@@ -268,7 +265,7 @@ Solution_samples_array.to_csv(
 # print(test_data.shape)
 # Solution_samples_array = pd.DataFrame({'samples': test_data.flatten()})
 # Solution_samples_array.to_csv(
-#     'data/2delta/Test_d_' + str(num_test) + '_Nt_' + str(nt_test) + '_K_' +
+#     'data/plateau/Test_d_' + str(num_test) + '_Nt_' + str(nt_test) + '_K_' +
 #     str(K) + '_Np_' + str(N) + '.csv',
 #     index=False)
 
@@ -306,7 +303,7 @@ train_data_noise = batch_sample_adding_noise(U_train, nosie_vec)
 
 train_noise = pd.DataFrame({'samples': train_data_noise.flatten()})
 train_noise.to_csv(
-    'data/2delta/Train_noise_' + str(noise_level) + '_d_' + str(num_train) +
+    'data/plateau/Train_noise_' + str(noise_level) + '_d_' + str(num_train) +
     '_Nt_' + str(nt_step_train) + '_K_' + str(K) + '_Np_' + str(N) + '.csv',
     index=False)
 

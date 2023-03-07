@@ -13,8 +13,6 @@ test_seed = random.PRNGKey(1)
 # ### Data Generation Inputs
 num_train = 200
 num_test = 10
-nt_step_train = 41  # including the initial condition
-nt_step_test = 401
 
 # num_train = 2
 # num_test = 2
@@ -54,7 +52,7 @@ Nfaces = 2
 a = 1
 alpha = 1
 
-modes = 6
+modes = 4
 Basis = np.zeros((modes, Np, K))
 # for i in range(1, int(modes/2) + 1):
 #     Basis[2*i-2, :] = np.sin(np.pi * 2 * i * x)
@@ -68,7 +66,8 @@ FinalTime = 0.4
 xmin = np.min(np.abs(x[1, :] - x[2, :]))
 CFL = 1
 gamma = 1.4
-dt = CFL / (1)*xmin
+c = jnp.sqrt(2*gamma)
+dt = CFL / c*xmin
 dt = .5*dt
 
 # print(dt)
@@ -76,6 +75,9 @@ dt = .5*dt
 Nsteps = int(np.ceil(FinalTime / dt))
 dt = FinalTime / Nsteps
 # dt = np.round(dt*100) / 100
+
+nt_step_train = int(np.ceil(Nsteps/10)) + 1  # including the initial condition
+nt_step_test = Nsteps + 1
 
 # dt = 0.01
 
@@ -155,7 +157,7 @@ def slope_limit_n(u):
   return ulimit
 
 
-def EulerRHS1D(rho, rhou, Ener):
+def EulerRHS1D(rho, rhou, Ener, bc):
   """Evalueate RHS flux for 1D Euler Equations
   """
   # compute max velocity for LF Flux
@@ -169,54 +171,79 @@ def EulerRHS1D(rho, rhou, Ener):
   Enerf = (Ener+pres)*rhou / rho
 
   # compute jumps
-  drho = rho[vmapM] - rho[vmapP]
-  drhou = rhou[vmapM] - rhou[vmapP]
-  dEner = Ener[vmapM] - Ener[vmapP]
-  drhof = rhof[vmapM] - rhof[vmapP]
-  drhouf = rhouf[vmapM] - rhouf[vmapP]
-  dEnerf = Enerf[vmapM] - Enerf[vmapP]
-  LFc = jnp.max(lm[vmapM], lm[vmapP])
+  drho = jnp.reshape((rho.ravel()[vmapM] - rho.ravel()[vmapP]), (Nfp*Nfaces, K))
+  drhou = jnp.reshape((rhou.ravel()[vmapM] - rhou.ravel()[vmapP]),
+                      (Nfp*Nfaces, K))
+  dEner = jnp.reshape((Ener.ravel()[vmapM] - Ener.ravel()[vmapP]),
+                      (Nfp*Nfaces, K))
+  drhof = jnp.reshape((rhof.ravel()[vmapM] - rhof.ravel()[vmapP]),
+                      (Nfp*Nfaces, K))
+  drhouf = jnp.reshape((rhouf.ravel()[vmapM] - rhouf.ravel()[vmapP]),
+                       (Nfp*Nfaces, K))
+  dEnerf = jnp.reshape((Enerf.ravel()[vmapM] - Enerf.ravel()[vmapP]),
+                       (Nfp*Nfaces, K))
+  LFc = jnp.reshape(
+      jnp.max(jnp.array([lm.ravel()[vmapM],
+                         lm.ravel()[vmapP]]), 0), (Nfp*Nfaces, K))
 
   # compute flux at interfaces
-  drhof = nx*drhof/2 - LFc/2*drho
-  drhouf = nx*drhouf/2 - LFc/2*drhou
-  dEnerf = nx*dEnerf/2 - LFc/2*dEner
+  drhof = jnp.reshape(
+      (nx.ravel()*drhof.ravel() / 2 - LFc.ravel() / 2*drho.ravel()),
+      (Nfp*Nfaces, K))
+  drhouf = jnp.reshape(
+      (nx.ravel()*drhouf.ravel() / 2 - LFc.ravel() / 2*drhou.ravel()),
+      (Nfp*Nfaces, K))
+  dEnerf = jnp.reshape(
+      (nx.ravel()*dEnerf.ravel() / 2 - LFc.ravel() / 2*dEner.ravel()),
+      (Nfp*Nfaces, K))
 
   # BC's for shock tube
-  rhoin = rho[0]
-  rhouin = 0
-  pin = pres[0]
-  Enerin = Ener[-1]
-  rhoout = rho[-1]
-  rhouout = 0
-  pout = pres[-1]
-  Enerout = Ener[-1]
+  rhoin = bc[0, 0]
+  rhouin = bc[0, 1]
+  Enerin = bc[0, -1]
+  pin = Enerin*(gamma-1)
+  rhoout = bc[-1, 0]
+  rhouout = bc[-1, 1]
+  Enerout = bc[-1, -1]
+  pout = Enerout*(gamma-1)
 
   # set fluxes at inflow/outflow
   rhofin = rhouin
   rhoufin = rhouin**2 / rhoin + pin
   Enerfin = (pin / (gamma-1) + 0.5*rhouin**2 / rhoin + pin)*rhouin / rhoin
-  lmI = lm[vmapI] / 2
-  nxI = nx[vmapI]
-  drho = drho.at[mapI].set(nxI @ (rhof[vmapI] - rhofin) / 2 -
-                           lmI @ (rho[vmapI] - rhoin))
-  drhou = drhou.at[mapI].set(nxI @ (rhouf[vmapI] - rhoufin) / 2 -
-                             lmI @ (rhou[vmapI] - rhouin))
-  dEner = dEner.at[mapI].set(nxI @ (Enerf[vmapI] - Enerfin) / 2 -
-                             lmI @ (Ener[vmapI] - Enerin))
+  lmI = lm.ravel()[vmapI] / 2
+  nxI = nx.ravel()[mapI]
+  drho = jnp.reshape(
+      drho.ravel().at[mapI].set(
+          jnp.squeeze(nxI*(rhof.ravel()[vmapI] - rhofin) / 2 - lmI*
+                      (rho.ravel()[vmapI] - rhoin))), (Nfp*Nfaces, K))
+  drhou = jnp.reshape(
+      drhou.at[mapI].set(
+          jnp.squeeze(nxI*(rhouf.ravel()[vmapI] - rhoufin) / 2 - lmI*
+                      (rhou.ravel()[vmapI] - rhouin))), (Nfp*Nfaces, K))
+  dEner = jnp.reshape(
+      dEner.at[mapI].set(
+          jnp.squeeze(nxI*(Enerf.ravel()[vmapI] - Enerfin) / 2 - lmI*
+                      (Ener.ravel()[vmapI] - Enerin))), (Nfp*Nfaces, K))
 
   rhofout = rhouout
   rhoufout = rhouout**2 / rhoout + pout
   Enerfout = (pout /
               (gamma-1) + 0.5*rhouout**2 / rhoout + pout)*rhouout / rhoout
-  lmO = lm[vmapO] / 2
-  nxO = nx[mapO]
-  drho = drho.at[mapO].set(nxO @ (rhof[vmapO] - rhofout) / 2 -
-                           lmO @ (rho[vmapO] - rhoout))
-  drhou = drhou.at[mapO].set(nxO @ (rhouf[vmapO] - rhoufout) / 2 -
-                             lmO @ (rhou[vmapO] - rhouout))
-  dEner = dEner.at[mapO].set(nxO @ (Enerf[vmapO] - Enerfout) / 2 -
-                             lmO @ (Ener[vmapO] - Enerout))
+  lmO = lm.ravel()[vmapO] / 2
+  nxO = nx.ravel()[mapO]
+  drho = jnp.reshape(
+      drho.ravel().at[mapO].set(
+          jnp.squeeze(nxO*(rhof.ravel()[vmapO] - rhofout) / 2 - lmO*
+                      (rho.ravel()[vmapO] - rhoout))), (Nfp*Nfaces, K))
+  drhou = jnp.reshape(
+      drhou.at[mapO].set(
+          jnp.squeeze(nxO*(rhouf.ravel()[vmapO] - rhoufout) / 2 - lmO*
+                      (rhou.ravel()[vmapO] - rhouout))), (Nfp*Nfaces, K))
+  dEner = jnp.reshape(
+      dEner.at[mapO].set(
+          jnp.squeeze(nxO*(Enerf.ravel()[vmapO] - Enerfout) / 2 - lmO*
+                      (Ener.ravel()[vmapO] - Enerout))), (Nfp*Nfaces, K))
 
   # compute rhs of the PDEs
   rhsrho = -rx*(Dr@rhof) + LIFT @ (Fscale*drhof)
@@ -225,26 +252,28 @@ def EulerRHS1D(rho, rhou, Ener):
   return rhsrho, rhsrhou, rhsEner
 
 
-def numerical_solver(u):
-  rho, rhou, Ener = u
-  
+def numerical_solver(u, bc):
+  rho = u[..., 0]
+  rhou = u[..., 1]
+  Ener = u[..., 2]
+
   # SSP RK 1
-  rhsrho, rhsrhou, rhsEner = EulerRHS1D(rho, rhou, Ener)
+  rhsrho, rhsrhou, rhsEner = EulerRHS1D(rho, rhou, Ener, bc)
   rho1 = slope_limit_n(rho + dt*rhsrho)
   rhou1 = slope_limit_n(rhou + dt*rhsrhou)
   Ener1 = slope_limit_n(Ener + dt*rhsEner)
 
   # SSP RK 2
-  rhsrho, rhsrhou, rhsEner = EulerRHS1D(rho1, rhou1, Ener1)
-  rho2 = slope_limit_n((3*rho + rho1 + dt*rhsrho)/4)
-  rhou2 = slope_limit_n((3*rhou + rhou1 + dt*rhsrhou)/4)
-  Ener2 = slope_limit_n((3*Ener + Ener1 + dt*rhsEner)/4)
+  rhsrho, rhsrhou, rhsEner = EulerRHS1D(rho1, rhou1, Ener1, bc)
+  rho2 = slope_limit_n((3*rho + rho1 + dt*rhsrho) / 4)
+  rhou2 = slope_limit_n((3*rhou + rhou1 + dt*rhsrhou) / 4)
+  Ener2 = slope_limit_n((3*Ener + Ener1 + dt*rhsEner) / 4)
 
   # SSP RK 3
-  rhsrho, rhsrhou, rhsEner = EulerRHS1D(rho1, rhou1, Ener1)
-  rho3 = slope_limit_n((rho + 2*rho2 + 2*dt*rhsrho)/3)
-  rhou3 = slope_limit_n((rhou + 2*rhou2 + 2*dt*rhsrhou)/3)
-  Ener3 = slope_limit_n((Ener + 2*Ener2 + 2*dt*rhsEner)/3)
+  rhsrho, rhsrhou, rhsEner = EulerRHS1D(rho1, rhou1, Ener1, bc)
+  rho3 = slope_limit_n((rho + 2*rho2 + 2*dt*rhsrho) / 3)
+  rhou3 = slope_limit_n((rhou + 2*rhou2 + 2*dt*rhsrhou) / 3)
+  Ener3 = slope_limit_n((Ener + 2*Ener2 + 2*dt*rhsEner) / 3)
 
   u = jnp.array([rho3, rhou3, Ener3])
   return u
@@ -252,13 +281,14 @@ def numerical_solver(u):
 
 def generate_data(u, Nsteps):
   step_save = 0
-  U_data = jnp.zeros((Nsteps, K*(N+1)))
-  U_data = U_data.at[step_save, :].set((u.T).flatten())
+  U_data = jnp.zeros((Nsteps, K*(N+1)*3))
+  U_data = U_data.at[step_save, :].set(u.flatten())
+  bc = u[[0, -1], [0, -1], :]
 
   for tstep in range(1, Nsteps):  # outer time step loop
-    u = numerical_solver(u)
+    u = numerical_solver(u, bc)
     step_save += 1
-    U_data = U_data.at[step_save, :].set((u.T).flatten())
+    U_data = U_data.at[step_save, :].set(u.flatten())
 
   return U_data
 
@@ -269,14 +299,14 @@ generate_data_batch = vmap(generate_data, in_axes=(0, None))
 def get_shock_init(coefs, x):
   coefs = jnp.sort(jnp.abs(coefs))
   p1, rho1, p4, rho4 = coefs
-  # keep speed of sound below 1 for CFL
+  # keep speed of sound below sqrt(2*gamma) for CFL
   eps = 1e-8
-  p1 = jnp.where(p1 > (rho1 / gamma), rho1/gamma - eps, p1)
-  p4 = jnp.where(p4 > (rho4 / gamma), rho4/gamma - eps, p4)
+  p1 = jnp.where(p1 >= 2*rho1, 2*rho1 - eps, p1)
+  p4 = jnp.where(p4 >= 2*rho4, 2*rho4 - eps, p4)
   u = jnp.zeros((*x.shape, 3))
   u = u.at[:, :, 0].set(jnp.where(x <= 0.5, rho4, rho1))
   u = u.at[:, :, 2].set(jnp.where(x <= 0.5, p4 / (gamma-1), p1 / (gamma-1)))
-
+  # u = [rho, rhou, Ener]
   return u
 
 
@@ -286,7 +316,8 @@ coeffs_train = random.normal(train_seed, (num_train, modes))
 # u_batch_train = np.einsum('bi, ikl -> bkl', coeffs_train, Basis)
 u_batch_train = vmap(
     get_shock_init, in_axes=(0, None))(coeffs_train, jnp.array(x))
-bc_train = jnp.array([u_batch_train[..., 0], u_batch_train[..., -1]])
+# bc_train = jnp.array([u_batch_train[:,0,0,:], u_batch_train[:,-1,-1,:]])
+# bc_train = jnp.moveaxis(bc_train, 1, 0)
 train_data = generate_data_batch(u_batch_train, nt_step_train)
 print(train_data.shape)
 print(train_data.max())
@@ -302,6 +333,8 @@ coeffs_test = random.normal(test_seed, (num_test, modes))
 # u_batch_test = np.einsum('bi, ikl -> bkl', coeffs_test, Basis)
 u_batch_test = vmap(
     get_shock_init, in_axes=(0, None))(coeffs_test, jnp.array(x))
+# bc_test = jnp.array([u_batch_train[:,0,0,:], u_batch_train[:,-1,-1,:]])
+# bc_test = jnp.moveaxis(bc_test, 1, 0)
 test_data = generate_data_batch(u_batch_test, nt_step_test)
 print(test_data.shape)
 print(test_data.max())
@@ -324,7 +357,7 @@ Solution_samples_array.to_csv(
 
 # print('='*20 + ' TRAIN NOISE DATA () ' + '='*20)
 key_data_noise = random.PRNGKey(3)
-U_train = np.reshape(train_data, (num_train, nt_step_train, K, N + 1))
+U_train = np.reshape(train_data, (num_train, nt_step_train, K, N + 1, 3))
 nosie_vec = jax.random.normal(key_data_noise, U_train.shape)
 
 noise_level = 0.01
