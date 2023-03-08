@@ -589,7 +589,7 @@ def plot_figures(alpha1, alpha2, alpha3, alpha4, Nt, sample):
 
 
 Nt = 597
-sample = 2
+sample = 1
 plot_figures(0., 0.0, 512, 1., Nt, sample)
 # plot_figures(1e5, 0.0, 512, 10, Nt, sample)
 # plot_figures(1e5, 0.0, 512, Nt, sample)
@@ -599,7 +599,7 @@ plot_figures(0., 0.0, 512, 1., Nt, sample)
 print(pred_sols)
 
 Nt = 597
-sample = 2
+sample = 1
 
 x = np.loadtxt('../MATLAB/x.txt', delimiter=',')
 plt.figure()
@@ -642,7 +642,7 @@ plt.plot(x[:, i],
          markevery=N,
          ms=5,
          mfc='w',
-         label='Prediction ' + r'$n_t = 400$')
+         label='Prediction ' + r'$n_t = 597$')
 plt.plot(x[:, i],
          np.reshape(Test_data[sample, Nt, :], (K, N + 1))[i, :],
          linestyle='-',
@@ -651,7 +651,7 @@ plt.plot(x[:, i],
          dashes=(3, 3),
          markevery=3,
          ms=5,
-         label='True ' + r'$n_t = 400$')
+         label='True ' + r'$n_t = 597$')
 
 plt.legend(loc='best')
 
