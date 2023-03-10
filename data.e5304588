@@ -1,0 +1,14 @@
+
+Currently Loaded Modules:
+  1) intel/19.1.1    5) cmake/3.24.2    9) TACC           13) cuda/11.3   (g)
+  2) impi/19.0.9     6) pmix/3.1.4     10) python3/3.9.2  14) nccl/2.9.9  (g)
+  3) git/2.24.1      7) hwloc/1.11.12  11) phdf5/1.10.4   15) cudnn/8.2.1 (g)
+  4) autotools/1.2   8) xalt/2.10.34   12) launcher/3.9
+
+  Where:
+   g:  built for GPU
+
+ 
+
+using /tmp/launcher.5304588.hostlist.7iu1OSsJ to get hosts
+starting job on c196-081

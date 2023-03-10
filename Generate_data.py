@@ -4,6 +4,20 @@ from jax import vmap, jit, random, lax
 import pandas as pd
 import jax.numpy as jnp
 
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--node", default=1, type=int)
+parser.add_argument("--GPU_index", default=0, type=int)
+parser.add_argument("--N", default=1, type=int)
+args = parser.parse_args()
+
+NODE = args.node
+GPU_index = args.GPU_index
+
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = str(GPU_index)
+
 # from jax.config import config
 # config.update("jax_enable_x64", True)
 
@@ -19,32 +33,75 @@ num_test = 10
 # nt_step_train = 41 # including the initial condition
 # nt_step_test = 31
 
+# def load_data(filename):
+#   jnp.array(np.loadtxt(filename, delimiter=','))
 
-def load_data(filename):
-  jnp.array(np.loadtxt(filename, delimiter=','))
+# N = int(np.loadtxt('MATLAB/N.txt', delimiter=','))
+# K = int(np.loadtxt('MATLAB/K.txt', delimiter=','))
+K = 20
+N = int(args.N)
 
-
-LIFT = jnp.array(np.loadtxt('MATLAB/LIFT.txt', delimiter=','))
-Dr = jnp.array(np.loadtxt('MATLAB/Dr.txt', delimiter=','))
-Fscale = jnp.array(np.loadtxt('MATLAB/Fscale.txt', delimiter=','))
-invV = jnp.array(np.loadtxt('MATLAB/invV.txt', delimiter=','))
+LIFT = jnp.array(
+    np.loadtxt(
+        'MATLAB/LIFT_K_' + str(K) + '_Np_' + str(N) + '.txt', delimiter=','))
+Dr = jnp.array(
+    np.loadtxt(
+        'MATLAB/Dr_K_' + str(K) + '_Np_' + str(N) + '.txt', delimiter=','))
+Fscale = jnp.array(
+    np.loadtxt(
+        'MATLAB/Fscale_K_' + str(K) + '_Np_' + str(N) + '.txt', delimiter=','))
+invV = jnp.array(
+    np.loadtxt(
+        'MATLAB/invV_K_' + str(K) + '_Np_' + str(N) + '.txt', delimiter=','))
 rk4a = jnp.array(np.loadtxt('MATLAB/rk4a.txt', delimiter=','))
 rk4b = jnp.array(np.loadtxt('MATLAB/rk4b.txt', delimiter=','))
 rk4c = jnp.array(np.loadtxt('MATLAB/rk4c.txt', delimiter=','))
-rx = jnp.array(np.loadtxt('MATLAB/rx.txt', delimiter=','))
-V = jnp.array(np.loadtxt('MATLAB/V.txt', delimiter=','))
-vmapM = jnp.array(np.loadtxt('MATLAB/vmapM.txt', delimiter=',', dtype=int) - 1)
-vmapP = jnp.array(np.loadtxt('MATLAB/vmapP.txt', delimiter=',', dtype=int) - 1)
-vmapI = jnp.array(np.loadtxt('MATLAB/vmapI.txt', delimiter=',', dtype=int) - 1)
-vmapO = jnp.array(np.loadtxt('MATLAB/vmapO.txt', delimiter=',', dtype=int) - 1)
-mapI = jnp.array(np.loadtxt('MATLAB/mapI.txt', delimiter=',', dtype=int) - 1)
-mapO = jnp.array(np.loadtxt('MATLAB/mapO.txt', delimiter=',', dtype=int) - 1)
-x = jnp.array(np.loadtxt('MATLAB/x.txt', delimiter=','))
-N = int(np.loadtxt('MATLAB/N.txt', delimiter=','))
-K = int(np.loadtxt('MATLAB/K.txt', delimiter=','))
-nx = jnp.array(np.loadtxt('MATLAB/nx.txt', delimiter=','))
-
-EToE = jnp.array(np.loadtxt('MATLAB/EToE.txt', delimiter=',') - 1).astype(int)
+rx = jnp.array(
+    np.loadtxt(
+        'MATLAB/rx_K_' + str(K) + '_Np_' + str(N) + '.txt', delimiter=','))
+V = jnp.array(
+    np.loadtxt(
+        'MATLAB/V_K_' + str(K) + '_Np_' + str(N) + '.txt', delimiter=','))
+vmapM = jnp.array(
+    np.loadtxt(
+        'MATLAB/vmapM_K_' + str(K) + '_Np_' + str(N) + '.txt',
+        delimiter=',',
+        dtype=int) - 1)
+vmapP = jnp.array(
+    np.loadtxt(
+        'MATLAB/vmapP_K_' + str(K) + '_Np_' + str(N) + '.txt',
+        delimiter=',',
+        dtype=int) - 1)
+vmapI = jnp.array(
+    np.loadtxt(
+        'MATLAB/vmapI_K_' + str(K) + '_Np_' + str(N) + '.txt',
+        delimiter=',',
+        dtype=int) - 1)
+vmapO = jnp.array(
+    np.loadtxt(
+        'MATLAB/vmapO_K_' + str(K) + '_Np_' + str(N) + '.txt',
+        delimiter=',',
+        dtype=int) - 1)
+mapI = jnp.array(
+    np.loadtxt(
+        'MATLAB/mapI_K_' + str(K) + '_Np_' + str(N) + '.txt',
+        delimiter=',',
+        dtype=int) - 1)
+mapO = jnp.array(
+    np.loadtxt(
+        'MATLAB/mapO_K_' + str(K) + '_Np_' + str(N) + '.txt',
+        delimiter=',',
+        dtype=int) - 1)
+x = jnp.array(
+    np.loadtxt(
+        'MATLAB/x_K_' + str(K) + '_Np_' + str(N) + '.txt', delimiter=','))
+nx = jnp.array(
+    np.loadtxt(
+        'MATLAB/nx_K_' + str(K) + '_Np_' + str(N) + '.txt', delimiter=','))
+EToE = jnp.array(
+    np.loadtxt(
+        'MATLAB/EToE_K_' + str(K) + '_Np_' + str(N) + '.txt', delimiter=',') -
+    1).astype(int)
 
 Np = N + 1
 Nfp = 1
@@ -53,7 +110,7 @@ a = 1
 alpha = 1
 
 modes = 5
-Basis = np.zeros((modes, Np, K))
+# Basis = np.zeros((modes, Np, K))
 # for i in range(1, int(modes/2) + 1):
 #     Basis[2*i-2, :] = np.sin(np.pi * 2 * i * x)
 #     Basis[2*i-1, :] = np.cos(np.pi * 2 * i * x)
@@ -63,18 +120,16 @@ Basis = np.zeros((modes, Np, K))
 FinalTime = 1
 
 # compute time step size
-xmin = np.min(np.abs(x[1, :] - x[2, :]))
+xmin = np.min(np.abs(x[:-1] - x[1:]))
 CFL = 0.75
 dt = CFL / (1)*xmin
 dt = .5*dt
-
-# print(dt)
-
 Nsteps = int(np.ceil(FinalTime / dt))
 dt = FinalTime / Nsteps
 
-nt_step_train = int(np.floor(Nsteps/10))+1  # including the initial condition
-nt_step_test = Nsteps+1
+nt_step_train = int(np.floor(
+    Nsteps / 10)) + 1  # including the initial condition
+nt_step_test = Nsteps + 1
 
 # dt = np.round(dt*100) / 100
 
@@ -163,7 +218,7 @@ def AdvecRHS1D(u):
   alpha = 0  # <-- 0 = upwind, 1 = central
   du_transpose = (u_transpose[vmapM] -
                   u_transpose[vmapP])*(nx_transpose -
-                                       (1-alpha)*np.abs(nx_transpose)) / 2
+                                      (1-alpha)*np.abs(nx_transpose)) / 2
 
   # Impose periodic conditions
   # impose boundary condition at x=0
@@ -176,7 +231,7 @@ def AdvecRHS1D(u):
   uout = u_transpose[0]
   du_transpose = du_transpose.at[mapO].set(
       (uout - u_transpose[vmapO])*(nx_transpose[mapI] -
-                                   (1-alpha)*np.abs(nx_transpose[mapI])) / 2)
+                                  (1-alpha)*np.abs(nx_transpose[mapI])) / 2)
 
   # compute right hand sides of the semi-discrete PDE
   du = jnp.reshape(du_transpose, (K, Nfp*Nfaces)).T
@@ -209,20 +264,19 @@ def generate_data(u, Nsteps):
 
 generate_data_batch = vmap(generate_data, in_axes=(0, None))
 
-
 def get_initial(coefs, x):
   coefs = jnp.sort(jnp.abs(coefs))
   x1, x2, x3, x4, ptop = coefs
-  x1, x2, x3, x4 = jnp.array([x1, x2, x3, x4]) / ptop
-  ptop *= 5
+  xs = jnp.array([x1, x2, x3, x4]) / ptop
+  xs = 0.5*(xs+0.5)
+  ptop *= 2
   u = jnp.where(
       x <= x1, jnp.ones_like(x),
       jnp.where(
           x <= x2, ptop - (ptop-1)*(jnp.abs(x2 - x) / (x2-x1)),
           jnp.where(
               x <= x3, jnp.full_like(x, ptop),
-              jnp.where(x <= x4,
-                        ptop - (ptop-1)*(jnp.abs(x3 - x) / (x4-x3)),
+              jnp.where(x <= x4, ptop - (ptop-1)*(jnp.abs(x3 - x) / (x4-x3)),
                         jnp.ones_like(x)))))
 
   return u
@@ -232,8 +286,7 @@ def get_initial(coefs, x):
 print('Generating train data ......................')
 coeffs_train = random.normal(train_seed, (num_train, modes))
 # u_batch_train = np.einsum('bi, ikl -> bkl', coeffs_train, Basis)
-u_batch_train = vmap(
-    get_initial, in_axes=(0, None))(coeffs_train, jnp.array(x))
+u_batch_train = vmap(get_initial, in_axes=(0, None))(coeffs_train, jnp.array(x))
 train_data = generate_data_batch(u_batch_train, nt_step_train)
 print(train_data.shape)
 print(train_data.max())
@@ -247,15 +300,14 @@ Solution_samples_array.to_csv(
 print('Generating test data ......................')
 coeffs_test = random.normal(test_seed, (num_test, modes))
 # u_batch_test = np.einsum('bi, ikl -> bkl', coeffs_test, Basis)
-u_batch_test = vmap(
-    get_initial, in_axes=(0, None))(coeffs_test, jnp.array(x))
+u_batch_test = vmap(get_initial, in_axes=(0, None))(coeffs_test, jnp.array(x))
 test_data = generate_data_batch(u_batch_test, nt_step_test)
 print(test_data.shape)
 print(test_data.max())
 Solution_samples_array = pd.DataFrame({'samples': test_data.flatten()})
 Solution_samples_array.to_csv(
-    'data/plateau/Test_d_' + str(num_test) + '_Nt_' + str(nt_step_test) + '_K_' +
-    str(K) + '_Np_' + str(N) + '.csv',
+    'data/plateau/Test_d_' + str(num_test) + '_Nt_' + str(nt_step_test) +
+    '_K_' + str(K) + '_Np_' + str(N) + '.csv',
     index=False)
 
 ### Generate test data
@@ -269,43 +321,37 @@ Solution_samples_array.to_csv(
 #     str(K) + '_Np_' + str(N) + '.csv',
 #     index=False)
 
-print('='*20 + ' TRAIN NOISE DATA () ' + '='*20)
-key_data_noise = random.PRNGKey(3)
-U_train = np.reshape(train_data, (num_train, nt_step_train, K, N + 1))
-nosie_vec = jax.random.normal(key_data_noise, U_train.shape)
+# print('='*20 + ' TRAIN NOISE DATA () ' + '='*20)
+# key_data_noise = random.PRNGKey(3)
+# U_train = np.reshape(train_data, (num_train, nt_step_train, K, N + 1))
+# nosie_vec = jax.random.normal(key_data_noise, U_train.shape)
 
-noise_level = 0.01
+# noise_level = 0.01
 
+# def element_adding_noise(element_nodal_values, nosie_vec):
+#   return element_nodal_values + noise_level*nosie_vec*jnp.max(
+#       element_nodal_values)
 
-def element_adding_noise(element_nodal_values, nosie_vec):
-  return element_nodal_values + noise_level*nosie_vec*jnp.max(
-      element_nodal_values)
+# batch_element_adding_noise = jax.vmap(element_adding_noise, in_axes=(0, 0))
 
+# def timestep_adding_noise(step_all_element_values, nosie_vec):
+#   return batch_element_adding_noise(step_all_element_values, nosie_vec)
 
-batch_element_adding_noise = jax.vmap(element_adding_noise, in_axes=(0, 0))
+# batch_timestep_adding_noise = jit(
+#     jax.vmap(timestep_adding_noise, in_axes=(0, 0)))
 
+# def sample_adding_noise(sample_values, nosie_vec):
+#   return batch_timestep_adding_noise(sample_values, nosie_vec)
 
-def timestep_adding_noise(step_all_element_values, nosie_vec):
-  return batch_element_adding_noise(step_all_element_values, nosie_vec)
+# batch_sample_adding_noise = (jax.vmap(sample_adding_noise, in_axes=(0, 0)))
 
+# train_data_noise = batch_sample_adding_noise(U_train, nosie_vec)
 
-batch_timestep_adding_noise = jit(
-    jax.vmap(timestep_adding_noise, in_axes=(0, 0)))
-
-
-def sample_adding_noise(sample_values, nosie_vec):
-  return batch_timestep_adding_noise(sample_values, nosie_vec)
-
-
-batch_sample_adding_noise = (jax.vmap(sample_adding_noise, in_axes=(0, 0)))
-
-train_data_noise = batch_sample_adding_noise(U_train, nosie_vec)
-
-train_noise = pd.DataFrame({'samples': train_data_noise.flatten()})
-train_noise.to_csv(
-    'data/plateau/Train_noise_' + str(noise_level) + '_d_' + str(num_train) +
-    '_Nt_' + str(nt_step_train) + '_K_' + str(K) + '_Np_' + str(N) + '.csv',
-    index=False)
+# train_noise = pd.DataFrame({'samples': train_data_noise.flatten()})
+# train_noise.to_csv(
+#     'data/plateau/Train_noise_' + str(noise_level) + '_d_' + str(num_train) +
+#     '_Nt_' + str(nt_step_train) + '_K_' + str(K) + '_Np_' + str(N) + '.csv',
+#     index=False)
 
 senders = []
 receivers = []
@@ -328,13 +374,19 @@ receivers_data = receivers_data.at[-1].set(0)
 
 Solution_samples_array = pd.DataFrame(
     {'samples': np.asarray([len(senders_data)])})
-Solution_samples_array.to_csv('MATLAB/num_edges.csv', index=False)
+Solution_samples_array.to_csv(
+    'MATLAB/num_edges_K_' + str(K) + '_Np_' + str(N) + '.csv', index=False)
 
 Solution_samples_array = pd.DataFrame({'samples': senders_data.flatten()})
-Solution_samples_array.to_csv('MATLAB/senders_data.csv', index=False)
+Solution_samples_array.to_csv(
+    'MATLAB/senders_data_K_' + str(K) + '_Np_' + str(N) + '.csv', index=False)
 
 Solution_samples_array = pd.DataFrame({'samples': receivers_data.flatten()})
-Solution_samples_array.to_csv('MATLAB/receivers_data.csv', index=False)
+Solution_samples_array.to_csv(
+    'MATLAB/receivers_data_K_' + str(K) + '_Np_' + str(N) + '.csv', index=False)
 
 Edges_to_nodes = jnp.reshape(jnp.asarray(range(len(senders_data))), (-1, 2))
-np.savetxt("MATLAB/edges_to_nodes.txt", Edges_to_nodes, delimiter=',')
+np.savetxt(
+    'MATLAB/edges_to_nodes_K_' + str(K) + '_Np_' + str(N) + '.txt',
+    Edges_to_nodes,
+    delimiter=',')
