@@ -9,6 +9,18 @@ from matplotlib import cm  # Colour map
 import matplotlib.animation as animatio
 import matplotlib.font_manager
 
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--node", default=1, type=int)
+parser.add_argument("--GPU_index", default=0, type=int)
+parser.add_argument("--K", default=1, type=int)
+parser.add_argument("--N", default=1, type=int)
+args = parser.parse_args()
+
+NODE = args.node
+GPU_index = args.GPU_index
+
 params = {
     'legend.fontsize': 14,
     'axes.labelsize': 16,
