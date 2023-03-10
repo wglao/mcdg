@@ -9,13 +9,15 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--node", default=1, type=int)
 parser.add_argument("--GPU_index", default=0, type=int)
-parser.add_argument("--N", default=1, type=int)
+parser.add_argument("--N", default=2, type=int)
+parser.add_argument("--K", default=1, type=int)
 args = parser.parse_args()
 
 NODE = args.node
 GPU_index = args.GPU_index
 
 import os
+
 os.environ["CUDA_VISIBLE_DEVICES"] = str(GPU_index)
 
 # from jax.config import config
@@ -25,7 +27,7 @@ train_seed = random.PRNGKey(0)
 test_seed = random.PRNGKey(1)
 
 # ### Data Generation Inputs
-num_train = 200
+num_train = 300
 num_test = 10
 
 # num_train = 2
@@ -38,7 +40,7 @@ num_test = 10
 
 # N = int(np.loadtxt('MATLAB/N.txt', delimiter=','))
 # K = int(np.loadtxt('MATLAB/K.txt', delimiter=','))
-K = 20
+K = int(args.K)
 N = int(args.N)
 
 LIFT = jnp.array(
@@ -109,7 +111,7 @@ Nfaces = 2
 a = 1
 alpha = 1
 
-modes = 5
+modes = 3
 # Basis = np.zeros((modes, Np, K))
 # for i in range(1, int(modes/2) + 1):
 #     Basis[2*i-2, :] = np.sin(np.pi * 2 * i * x)
@@ -218,7 +220,7 @@ def AdvecRHS1D(u):
   alpha = 0  # <-- 0 = upwind, 1 = central
   du_transpose = (u_transpose[vmapM] -
                   u_transpose[vmapP])*(nx_transpose -
-                                      (1-alpha)*np.abs(nx_transpose)) / 2
+                                       (1-alpha)*np.abs(nx_transpose)) / 2
 
   # Impose periodic conditions
   # impose boundary condition at x=0
@@ -231,7 +233,7 @@ def AdvecRHS1D(u):
   uout = u_transpose[0]
   du_transpose = du_transpose.at[mapO].set(
       (uout - u_transpose[vmapO])*(nx_transpose[mapI] -
-                                  (1-alpha)*np.abs(nx_transpose[mapI])) / 2)
+                                   (1-alpha)*np.abs(nx_transpose[mapI])) / 2)
 
   # compute right hand sides of the semi-discrete PDE
   du = jnp.reshape(du_transpose, (K, Nfp*Nfaces)).T
@@ -264,20 +266,14 @@ def generate_data(u, Nsteps):
 
 generate_data_batch = vmap(generate_data, in_axes=(0, None))
 
+
 def get_initial(coefs, x):
   coefs = jnp.sort(jnp.abs(coefs))
-  x1, x2, x3, x4, ptop = coefs
-  xs = jnp.array([x1, x2, x3, x4]) / ptop
+  x1, x2, ptop = coefs
+  xs = jnp.array([x1, x2]) / ptop
   xs = 0.5*(xs+0.5)
-  ptop *= 2
-  u = jnp.where(
-      x <= x1, jnp.ones_like(x),
-      jnp.where(
-          x <= x2, ptop - (ptop-1)*(jnp.abs(x2 - x) / (x2-x1)),
-          jnp.where(
-              x <= x3, jnp.full_like(x, ptop),
-              jnp.where(x <= x4, ptop - (ptop-1)*(jnp.abs(x3 - x) / (x4-x3)),
-                        jnp.ones_like(x)))))
+  ptop *= 3
+  u = jnp.where(x <= x1, 1, jnp.where(x <= x2, ptop, 1))
 
   return u
 
