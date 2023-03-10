@@ -18,7 +18,7 @@ LIST2 = []
 for file_i in range(number_of_node):
     for gpu_ind in range(number_of_GPU_per_node):
         if file_i * number_of_GPU_per_node + gpu_ind < len(LIST):
-            line = 'python ./Generate_data.py --node ' + str(file_i+1) + ' --GPU_index ' + str(gpu_ind) +  LIST[file_i * number_of_GPU_per_node + gpu_ind]
+            line = 'python ./Generate_results.py --node ' + str(file_i+1) + ' --GPU_index ' + str(gpu_ind) +  LIST[file_i * number_of_GPU_per_node + gpu_ind]
         if file_i * number_of_GPU_per_node + gpu_ind >= len(LIST):
             line = ' '
             
