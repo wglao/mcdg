@@ -27,7 +27,7 @@ train_seed = random.PRNGKey(0)
 test_seed = random.PRNGKey(1)
 
 # ### Data Generation Inputs
-num_train = 300
+num_train = 200
 num_test = 10
 
 # num_train = 2
@@ -273,7 +273,7 @@ def get_initial(coefs, x):
   xs = jnp.array([x1, x2]) / ptop
   xs = 0.5*(xs+0.5)
   ptop *= 3
-  u = jnp.where(x <= x1, 1, jnp.where(x <= x2, ptop, 1))
+  u = jnp.where(x <= xs[0], 1, jnp.where(x <= xs[1], ptop, 1))
 
   return u
 

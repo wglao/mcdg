@@ -6,7 +6,7 @@ import matplotlib.tri as tri
 from matplotlib.lines import Line2D
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm  # Colour map
-import matplotlib.animation as animatio
+import matplotlib.animation as anim
 import matplotlib.font_manager
 
 import argparse
@@ -14,10 +14,10 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--node", default=1, type=int)
 parser.add_argument("--GPU_index", default=0, type=int)
-parser.add_argument("--K", default=50, type=int)
+parser.add_argument("--K", default=20, type=int)
 parser.add_argument("--N", default=2, type=int)
 parser.add_argument("--alpha3", default=256, type=int)
-parser.add_argument("--alpha4", default=16, type=int)
+parser.add_argument("--alpha4", default=256, type=int)
 args = parser.parse_args()
 
 NODE = args.node
@@ -362,16 +362,17 @@ def load_plotfunction(alpha1, alpha2, alpha3, alpha4, type):
     return jnp.sum(loss_one_sample_batch(params, data))
 
   # ## Computing test error, predictions over all time steps
+  def solve_body(i, args):
+    params, u_data_current = args
+    u_next = single_forward_pass(params, u_data_current[i - 1, ...])
+    u_data_current = u_data_current.at[i, :].set(u_next)
+    return params, u_data_current
+
   def neural_solver(params, U_test):
-
     u = U_test[0, :]
-    U = jnp.zeros((nt_step_test, K*Np))
+    U = jnp.zeros((nt_step_test, K*int(Np)))
     U = U.at[0, :].set(u)
-
-    for i in range(1, nt_step_test):
-      u = single_forward_pass(params, u)
-      U = U.at[i, :].set(u)
-
+    _, U = lax.fori_loop(1, nt_step_test, solve_body, (params, U))
     return U
 
   neural_solver_batch = vmap(neural_solver, in_axes=(None, 0))
@@ -518,10 +519,16 @@ def MSE_Error_at_time_1dim(alpha1, alpha2, alpha3, alpha4, type,
                                    case_coordinate)
   return all_time_step_error_batch(pred, true)[1:]
 
+def MSE_Error_compare(alpha1, alpha2, alpha3, alpha4, type,
+                           case_coordinate):
+  pred, true = load_from_file_1dim(alpha1, alpha2, alpha3, alpha4, type,
+                                   case_coordinate)
+  return MSE(pred, true) 
 
 plt.figure(figsize=(10, 6))
 
-filename = 'K_' + str(K) + '_Np_' + str(N) + '_fdim_' + str(256) + '-' + str(16)
+filename = 'K_' + str(K) + '_Np_' + str(N) + '_fdim_' + str(alpha3) + '-' + str(
+    alpha4)
 
 plt.plot(
     MSE_Error_at_time_1dim(0., 0.0, alpha3, alpha4, 'best', 'x'),
@@ -561,7 +568,9 @@ plt.yscale('log')
 current_values = plt.gca().get_yticks()
 plt.gca().set_yticklabels(['{:.0e}'.format(x) for x in current_values])
 plt.legend(loc='lower right', ncol=2)
-plt.savefig('figs/plateau_adv1d/' + filename + '_mse.png', bbox_inches='tight')
+err = jnp.mean(MSE_Error_at_time_1dim(0., 0.0, alpha3, alpha4, 'best', 'x'))
+err1 = MSE_Error_compare(0., 0.0, alpha3, alpha4, 'best', 'x')
+plt.savefig('figs/plateau_adv1d/' + filename + '_mse_'+ '{:.2e}-{:.2e}'.format(err,err1) + '.png', bbox_inches='tight')
 # plt.close()
 plt.figure()
 
@@ -578,7 +587,7 @@ def plot_figures(alpha1, alpha2, alpha3, alpha4, Nt, sample):
         dashes=(2, 2))
     plt.plot(
         x[:, i],
-        np.reshape(Pred_sols[sample, Nt-1, :], (K, N + 1))[i, :],
+        np.reshape(Pred_sols[sample, Nt - 1, :], (K, N + 1))[i, :],
         linestyle='-',
         color='b',
         marker='o',
@@ -587,7 +596,7 @@ def plot_figures(alpha1, alpha2, alpha3, alpha4, Nt, sample):
         mfc='w')
     plt.plot(
         x[:, i],
-        np.reshape(True_data[sample, Nt-1, :], (K, N + 1))[i, :],
+        np.reshape(True_data[sample, Nt - 1, :], (K, N + 1))[i, :],
         linestyle='-',
         color='r',
         marker='x',
@@ -605,7 +614,7 @@ def plot_figures(alpha1, alpha2, alpha3, alpha4, Nt, sample):
       label='Initial')
   plt.plot(
       x[:, i],
-      np.reshape(Pred_sols[sample, Nt-1, :], (K, N + 1))[i, :],
+      np.reshape(Pred_sols[sample, Nt - 1, :], (K, N + 1))[i, :],
       linestyle='-',
       color='b',
       marker='o',
@@ -615,7 +624,7 @@ def plot_figures(alpha1, alpha2, alpha3, alpha4, Nt, sample):
       label='Prediction ' + '$n_t = {:d})$'.format(nt_step_test))
   plt.plot(
       x[:, i],
-      np.reshape(True_data[sample, Nt-1, :], (K, N + 1))[i, :],
+      np.reshape(True_data[sample, Nt - 1, :], (K, N + 1))[i, :],
       linestyle='-',
       color='r',
       marker='x',
@@ -629,12 +638,12 @@ def plot_figures(alpha1, alpha2, alpha3, alpha4, Nt, sample):
   filename = 'K_' + str(K) + '_Np_' + str(N) + '_fdim_' + str(
       alpha3) + '-' + str(alpha4)
   # plt.show()
-  plt.savefig('figs/plateau_adv1d/' + filename + '_1.png', bbox_inches='tight')
+  plt.savefig('figs/plateau_adv1d/' + filename + '.png', bbox_inches='tight')
   plt.close()
 
 
 Nt = nt_step_test
-sample = 9
+sample = 3
 plot_figures(0., 0.0, alpha3, alpha4, Nt, sample)
 # plot_figures(1e5, 0.0, 512, 10, Nt, sample)
 # plot_figures(1e5, 0.0, 512, Nt, sample)
@@ -642,66 +651,68 @@ plot_figures(0., 0.0, alpha3, alpha4, Nt, sample)
 # plot_figures(1e5, 0.0, 512, Nt, sample)
 
 # print(pred_sols)
+writer = anim.FFMpegWriter(fps=int(nt_step_test / 2))
+fig = plt.figure()
+with writer.saving(fig, "figs/plateau_adv1d/anim_" + filename + ".mp4", 100):
+  for frame in range(nt_step_test):
+    plt.clf()
+    for i in range(K):
+      plt.plot(
+          x[:, i],
+          np.reshape(Test_data[sample, 0, :], (K, N + 1))[i, :],
+          linestyle='-',
+          color='k',
+          dashes=(2, 2))
+      plt.plot(
+          x[:, i],
+          np.reshape(pred_sols[sample, frame, :], (K, N + 1))[i, :],
+          linestyle='-',
+          color='b',
+          marker='o',
+          markevery=N,
+          ms=5,
+          mfc='w')
+      plt.plot(
+          x[:, i],
+          np.reshape(Test_data[sample, frame, :], (K, N + 1))[i, :],
+          linestyle='-',
+          color='r',
+          marker='x',
+          dashes=(3, 3),
+          markevery=3,
+          ms=5)
 
-# plt.figure()
+    i = 1
+    plt.plot(
+        x[:, i],
+        np.reshape(Test_data[sample, 0, :], (K, N + 1))[i, :],
+        linestyle='-',
+        color='k',
+        dashes=(2, 2),
+        label='Initial')
+    plt.plot(
+        x[:, i],
+        np.reshape(pred_sols[sample, frame, :], (K, N + 1))[i, :],
+        linestyle='-',
+        color='b',
+        marker='o',
+        markevery=N,
+        ms=5,
+        mfc='w',
+        label='Prediction ' + '$n_t = {:d})$'.format(nt_step_test))
+    plt.plot(
+        x[:, i],
+        np.reshape(Test_data[sample, frame, :], (K, N + 1))[i, :],
+        linestyle='-',
+        color='r',
+        marker='x',
+        dashes=(3, 3),
+        markevery=3,
+        ms=5,
+        label='True ' + '$n_t = {:d})$'.format(nt_step_test))
+    plt.legend(loc='best')
+    writer.grab_frame()
 
-# for i in range(K):
-#   plt.plot(
-#       x[:, i],
-#       np.reshape(Test_data[sample, 0, :], (K, N + 1))[i, :],
-#       linestyle='-',
-#       color='k',
-#       dashes=(2, 2))
-#   plt.plot(
-#       x[:, i],
-#       np.reshape(pred_sols[sample, Nt, :], (K, N + 1))[i, :],
-#       linestyle='-',
-#       color='b',
-#       marker='o',
-#       markevery=N,
-#       ms=5,
-#       mfc='w')
-#   plt.plot(
-#       x[:, i],
-#       np.reshape(Test_data[sample, Nt, :], (K, N + 1))[i, :],
-#       linestyle='-',
-#       color='r',
-#       marker='x',
-#       dashes=(3, 3),
-#       markevery=3,
-#       ms=5)
-
-# i = 1
-# plt.plot(
-#     x[:, i],
-#     np.reshape(Test_data[sample, 0, :], (K, N + 1))[i, :],
-#     linestyle='-',
-#     color='k',
-#     dashes=(2, 2),
-#     label='Initial')
-# plt.plot(
-#     x[:, i],
-#     np.reshape(pred_sols[sample, Nt, :], (K, N + 1))[i, :],
-#     linestyle='-',
-#     color='b',
-#     marker='o',
-#     markevery=N,
-#     ms=5,
-#     mfc='w',
-#     label='Prediction ' + '$n_t = {:i})$'.format(nt_step_test))
-# plt.plot(
-#     x[:, i],
-#     np.reshape(Test_data[sample, Nt, :], (K, N + 1))[i, :],
-#     linestyle='-',
-#     color='r',
-#     marker='x',
-#     dashes=(3, 3),
-#     markevery=3,
-#     ms=5,
-#     label='True ' + '$n_t = {:i})$'.format(nt_step_test))
-
-# plt.legend(loc='best')
-
-# # plt.show()
+# plt.show()
 # plt.savefig('figs/plateau_adv1d/' + filename + '.png', bbox_inches='tight')
-# plt.close()
+plt.close()

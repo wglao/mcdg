@@ -1,4 +1,0 @@
-python ./Generate_data.py --node 3 --GPU_index 0 --K 100 --N 8
- 
- 
- 
