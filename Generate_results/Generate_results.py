@@ -14,10 +14,12 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--node", default=1, type=int)
 parser.add_argument("--GPU_index", default=0, type=int)
-parser.add_argument("--K", default=20, type=int)
+parser.add_argument("--K", default=100, type=int)
 parser.add_argument("--N", default=2, type=int)
-parser.add_argument("--alpha3", default=256, type=int)
+parser.add_argument("--alpha3", default=512, type=int)
 parser.add_argument("--alpha4", default=256, type=int)
+parser.add_argument("--clip_steps", default=100, type=int)
+parser.add_argument("--clip_rate", default=4, type=int)
 args = parser.parse_args()
 
 NODE = args.node
@@ -26,6 +28,8 @@ K = int(args.K)
 N = int(args.N)
 alpha3 = int(args.alpha3)
 alpha4 = int(args.alpha4)
+clip_steps = args.clip_steps
+clip_rate = args.clip_rate
 
 params = {
     'legend.fontsize': 14,
@@ -69,17 +73,17 @@ x = np.loadtxt(
     '../MATLAB/x_K_' + str(K) + '_Np_' + str(N) + '.txt', delimiter=',')
 
 
-def load_plotfunction(alpha1, alpha2, alpha3, alpha4, type):
+def load_plotfunction(alpha1, alpha2, alpha3, alpha4):
   # ## Loading data
-  n_seq = 1
+  n_seq = 0
   mc_alpha = int(alpha1)
 
   num_train = 200
   num_test = 10
 
-  learning_rate = 1e-3
+  learning_rate = 1e-4
   batch_size = num_train if num_train == 3 else 10
-  num_epochs = 1000000
+  num_epochs = 10000
 
   # In time space
   LIFT = np.loadtxt(
@@ -124,13 +128,15 @@ def load_plotfunction(alpha1, alpha2, alpha3, alpha4, type):
   a = 1
   alpha = 1
 
-  dt = 0.01
+  dt = 1 / (nt_step_test-1)
 
   noise_level = alpha2
 
-  filename = 'Adv_plateau_DG_GNN_K_' + str(K) + '_Np_' + str(
-      N) + '_flux_dim' + str(alpha3) + '-' + str(alpha4) + 'MCalpha_' + str(
-          mc_alpha) + '_noise_' + str(noise_level) + '_lr_' + str(
+  filename = 'Adv_plateau_DG_GNN_fft_clip_stepss{:.2f}-{:.2e}'.format(
+      clip_steps, clip_rate
+  ) + '_K_' + str(K) + '_Np_' + str(N) + '_flux_dim' + str(
+      int(alpha3)) + '-' + str(int(alpha4)) + 'MCalpha_' + str(
+          mc_alpha) + '_noise_' + '{:.2f}'.format(noise_level) + '_lr_' + str(
               learning_rate) + '_batch_' + str(batch_size) + '_nseq_' + str(
                   n_seq) + '_num_epochs_' + str(num_epochs)
 
@@ -149,7 +155,6 @@ def load_plotfunction(alpha1, alpha2, alpha3, alpha4, type):
   print(filename)
 
   # import pdb; pdb.set_trace()
-
   #! 2. Building up a neural network
   def build_toy_graph(u) -> jraph.GraphsTuple:
     """Define a four node graph, each node has a scalar as its feature."""
@@ -194,8 +199,8 @@ def load_plotfunction(alpha1, alpha2, alpha3, alpha4, type):
   def u_2_graph(u):
     """Assign new node attributes to the base graph"""
     A = jnp.reshape(u, (K, Np))
-    B = jnp.concatenate((A, x.T), axis=1)
-    return graph_base._replace(nodes=B)
+    # B = jnp.concatenate((A, x.T), axis=1)
+    return graph_base._replace(nodes=A)
 
   def GraphMapFeatures(embed_node_fn):
 
@@ -206,9 +211,10 @@ def load_plotfunction(alpha1, alpha2, alpha3, alpha4, type):
 
   def net_embed(graphs_tuple):
     embedder = GraphMapFeatures(
-        embed_node_fn=hk.Sequential(
-            [hk.Linear(int(alpha3)), jax.nn.relu,
-             hk.Linear(int(alpha4))]))
+        embed_node_fn=hk.Sequential([
+            hk.Linear(int(args.alpha3)), jnp.tanh,
+            hk.Linear(int(args.alpha3))
+        ]))
     return embedder(graphs_tuple)
 
   def GraphNetwork_simplified(update_edge_fn,
@@ -240,15 +246,15 @@ def load_plotfunction(alpha1, alpha2, alpha3, alpha4, type):
   def edge_update_fn(feats: jnp.ndarray) -> jnp.ndarray:
     """Edge update function for graph net."""
     net = hk.Sequential(
-        [hk.Linear(int(alpha3)), jax.nn.relu,
-         hk.Linear(int(alpha4))])
+        [hk.Linear(int(args.alpha3)), jnp.tanh,
+         hk.Linear(int(args.alpha4))])
     return net(feats)
 
   @jraph.concatenated_args
   def node_update_fn(feats: jnp.ndarray) -> jnp.ndarray:
     """Node update function for graph net."""
     net = hk.Sequential(
-        [hk.Linear(int(alpha3)), jax.nn.relu,
+        [hk.Linear(int(args.alpha3)), jnp.tanh,
          hk.Linear(int(Np))])
     return net(feats)
 
@@ -293,78 +299,17 @@ def load_plotfunction(alpha1, alpha2, alpha3, alpha4, type):
     rhsu = -rx*(Dr@u) + LIFT @ (Fscale*(du))
     return rhsu
 
-  def single_solve_forward(u_ti):
-    u = jnp.reshape(u_ti, (K, Np)).T
-    resu = jnp.zeros((Np, K))
-    for INTRK in range(0, 5):
-      rhsu = AdvecRHS1D(u)
-      resu = rk4a[INTRK]*resu + dt*rhsu
-      u = u + rk4b[INTRK]*resu
-    return u.T.flatten()
+  dt_factor = 100
 
-  #! STEP 3.2:: Define neural network forward solver (Back-Euler scheme)
   def single_forward_pass(params, u_ti):
-    # u = single_solve_forward(u_ti) # This is for debugging the training architecture
-    u = u_ti - dt*net.apply(params, u_ti)
-    return u
+    du = net.apply(params, u_ti)
+    # u_next = u_ti - dt_factor*dt*du
+    return du
 
-  #! 4. Training loss functions
-  def MSE(pred, true):
-    return jnp.mean(jnp.square(pred - true))
-
-  def squential_S_phase(i, args):
-
-    loss_ml, loss_mc, u_tilde, u_true, params = args
-
-    # The numerical solver solutions u_tilde branch
-    u_bar = single_solve_forward(u_tilde)
-
-    # The neural network solver solutions u_tilde branch
-    u_tilde = single_forward_pass(params, u_tilde)
-
-    # The machine learning loss
-    loss_ml += MSE(u_tilde, u_true[i + 1])
-
-    # The model-constrained loss
-    loss_mc += MSE(u_tilde, u_bar)
-
-    return loss_ml, loss_mc, u_tilde, u_true, params
-
-  def loss_one_sample_one_time(params, u):
-    loss_ml = 0
-    loss_mc = 0
-    u0_tilde = u[0, :]
-
-    # for the following steps up to sequential steps n_seq
-    loss_ml, loss_mc, _, _, _ = lax.fori_loop(
-        0, n_seq + 1, squential_S_phase,
-        (loss_ml, loss_mc, u0_tilde, u, params))
-
-    return loss_ml + mc_alpha*loss_mc
-
-  loss_one_sample_one_time_batch = jit(
-      vmap(loss_one_sample_one_time, in_axes=(None, 0), out_axes=0))
-
-  def transform_one_sample_data(u_one_sample):
-    u_out = jnp.zeros((nt_step_train - n_seq - 1, n_seq + 2, K*Np))
-    for i in range(nt_step_train - n_seq - 1):
-      u_out = u_out.at[i, :, :].set(u_one_sample[i:i + n_seq + 2, :])
-    return u_out
-
-  def loss_one_sample(params, u_one_sample):
-    u_batch_nt = transform_one_sample_data(u_one_sample)
-    return jnp.sum(loss_one_sample_one_time_batch(params, u_batch_nt))
-
-  loss_one_sample_batch = jit(
-      vmap(loss_one_sample, in_axes=(None, 0), out_axes=0))
-
-  def LossmcDNN(params, data):
-    return jnp.sum(loss_one_sample_batch(params, data))
-
-  # ## Computing test error, predictions over all time steps
   def solve_body(i, args):
     params, u_data_current = args
-    u_next = single_forward_pass(params, u_data_current[i - 1, ...])
+    du = single_forward_pass(params, u_data_current[i - 1, ...])
+    u_next = u_data_current[i - 1, ...] + dt_factor*dt*du
     u_data_current = u_data_current.at[i, :].set(u_next)
     return params, u_data_current
 
@@ -377,6 +322,10 @@ def load_plotfunction(alpha1, alpha2, alpha3, alpha4, type):
 
   neural_solver_batch = vmap(neural_solver, in_axes=(None, 0))
 
+  #! 4. Training loss functions
+  def MSE(pred, true):
+    return jnp.mean(jnp.square(pred - true))
+
   # @jit
   def test_acc(params, Test_set):
     return MSE(neural_solver_batch(params, Test_set), Test_set)
@@ -387,11 +336,9 @@ def load_plotfunction(alpha1, alpha2, alpha3, alpha4, type):
   opt_int, opt_update, opt_get_params = optimizers.adam(learning_rate)
   opt_state = opt_int(init_params)
 
-  if type == 'best':
-    params = pickle.load(open('../Network/Best_' + filename, "rb"))
-
-  if type == 'end':
-    params = pickle.load(open('../Network/Best_' + filename, "rb"))
+  pf = open('../Network/Best_' + filename, "rb")
+  params = pickle.load(pf)
+  pf.close()
 
   # test_accuracy = test_acc(opt_get_params(opt_state), Test_data)
   # print(test_accuracy)
@@ -401,7 +348,7 @@ def load_plotfunction(alpha1, alpha2, alpha3, alpha4, type):
 
 
 best_params, neural_solver, Test_data, Test_data_2, K, N, single_forward_pass, pred_sols = load_plotfunction(
-    0., 0.0, alpha3, alpha4, 'best')
+    0., 0.00, alpha3, alpha4)
 
 # Test_data[:,100,:] - Test_data_2[:,100,:]
 Solution_samples_array = pd.DataFrame({'samples': Test_data.flatten()})
@@ -410,28 +357,23 @@ Solution_samples_array.to_csv(
     index=False)
 
 
-def save_to_file(alpha1, alpha2, alpha3, alpha4, type):
+def save_to_file(alpha1, alpha2, alpha3, alpha4):
   best_params, neural_solver, Test_data, Test_data_2, K, N, single_forward_pass, pred_sols = load_plotfunction(
-      alpha1, alpha2, alpha3, alpha4, type)
+      alpha1, alpha2, alpha3, alpha4)
 
   Solution_samples_array = pd.DataFrame({'samples': pred_sols.flatten()})
 
-  case = '_K_' + str(K) + '_Np_' + str(N) + '_alpha_' + str(
-      alpha1) + '_dimD_' + str(alpha3) + '-' + str(
-          alpha4) + '_noise_level_' + str(alpha2)
+  case = 'clip_steps{:d}-{:d}'.format(clip_steps, clip_rate) + '_K_' + str(
+      K) + '_Np_' + str(N) + '_alpha_' + str(alpha1) + '_dimD_' + str(
+          alpha3) + '-' + str(alpha4) + '_noise_level_' + str(alpha2)
 
-  if type == 'best':
-    Solution_samples_array.to_csv(
-        'data/plateau_adv1d/pred_1dim_' + case + '.csv', index=False)
-
-  if type == 'end':
-    Solution_samples_array.to_csv(
-        'data/plateau_adv1d/end_pred_1dim_' + case + '.csv', index=False)
+  Solution_samples_array.to_csv(
+      'data/plateau_adv1d/pred_1dim_' + case + '.csv', index=False)
 
   return pred_sols
 
 
-pred_sols_2 = save_to_file(0., 0.0, alpha3, alpha4, 'best')
+pred_sols_2 = save_to_file(0., 0.00, alpha3, alpha4)
 
 
 def load_from_file(alpha1, alpha2, alpha3, alpha4):
@@ -449,39 +391,24 @@ def load_from_file(alpha1, alpha2, alpha3, alpha4):
   return pred, true
 
 
-def load_from_file_1dim(alpha1, alpha2, alpha3, alpha4, type, case_coordinate):
+def load_from_file_1dim(alpha1, alpha2, alpha3, alpha4, case_coordinate):
 
-  case = '_K_' + str(K) + '_Np_' + str(N) + '_alpha_' + str(
-      alpha1) + '_dimD_' + str(alpha3) + '-' + str(
-          alpha4) + '_noise_level_' + str(alpha2)
+  case = 'clip_steps{:d}-{:d}'.format(clip_steps, clip_rate) + '_K_' + str(
+      K) + '_Np_' + str(N) + '_alpha_' + str(alpha1) + '_dimD_' + str(
+          alpha3) + '-' + str(alpha4) + '_noise_level_' + str(alpha2)
   if case_coordinate == 'x':
-    if type == 'best':
-      pred = pd.read_csv('data/plateau_adv1d/pred_1dim_' + case + '.csv')
-    if type == 'end':
-      pred = pd.read_csv('data/plateau_adv1d/end_pred_1dim_' + case + '.csv')
+    pred = pd.read_csv('data/plateau_adv1d/pred_1dim_' + case + '.csv')
 
   if case_coordinate == 'no_x':
-    if type == 'best':
-      pred = pd.read_csv('data/plateau_adv1d/pred_1dim_' + case + '_no_x.csv')
-    if type == 'end':
-      pred = pd.read_csv('data/plateau_adv1d/end_pred_1dim_' + case +
-                         '_no_x.csv')
+    pred = pd.read_csv('data/plateau_adv1d/pred_1dim_' + case + '_no_x.csv')
 
   if case_coordinate == 'average':
-    if type == 'best':
-      pred = pd.read_csv('data/plateau_adv1d/pred_1dim_' + case +
-                         '_average_flux.csv')
-    if type == 'end':
-      pred = pd.read_csv('data/plateau_adv1d/end_pred_1dim_' + case +
-                         '_average_flux.csv')
+    pred = pd.read_csv('data/plateau_adv1d/pred_1dim_' + case +
+                       '_average_flux.csv')
 
   if case_coordinate == 'no_embed_receivers':
-    if type == 'best':
-      pred = pd.read_csv('data/plateau_adv1d/pred_1dim_' + case +
-                         '_receivers.csv')
-    if type == 'end':
-      pred = pd.read_csv('data/plateau_adv1d/end_pred_1dim_' + case +
-                         '_receivers.csv')
+    pred = pd.read_csv('data/plateau_adv1d/pred_1dim_' + case +
+                       '_receivers.csv')
 
   pred = np.reshape(pred.to_numpy(), (10, nt_step_test, K, N + 1))
   true = pd.read_csv('data/plateau_adv1d/true_K_' + str(K) + '_Np_' + str(N) +
@@ -513,25 +440,20 @@ all_time_step_error_batch = vmap(all_time_step_error, in_axes=(1, 1))
 #     return all_time_step_error_batch(pred, true)[1:]
 
 
-def MSE_Error_at_time_1dim(alpha1, alpha2, alpha3, alpha4, type,
-                           case_coordinate):
-  pred, true = load_from_file_1dim(alpha1, alpha2, alpha3, alpha4, type,
+def MSE_Error_at_time_1dim(alpha1, alpha2, alpha3, alpha4, case_coordinate):
+  pred, true = load_from_file_1dim(alpha1, alpha2, alpha3, alpha4,
                                    case_coordinate)
   return all_time_step_error_batch(pred, true)[1:]
 
-def MSE_Error_compare(alpha1, alpha2, alpha3, alpha4, type,
-                           case_coordinate):
-  pred, true = load_from_file_1dim(alpha1, alpha2, alpha3, alpha4, type,
-                                   case_coordinate)
-  return MSE(pred, true) 
 
 plt.figure(figsize=(10, 6))
 
-filename = 'K_' + str(K) + '_Np_' + str(N) + '_fdim_' + str(alpha3) + '-' + str(
-    alpha4)
+filename = 'Adv_plateau_DG_GNN_fft_clip_steps{:d}-{:d}'.format(
+    clip_steps, clip_rate) + '_K_' + str(K) + '_Np_' + str(
+        N) + '_flux_dim' + str(alpha3) + '-' + str(alpha4)
 
 plt.plot(
-    MSE_Error_at_time_1dim(0., 0.0, alpha3, alpha4, 'best', 'x'),
+    MSE_Error_at_time_1dim(0., 0.00, alpha3, alpha4, 'x'),
     linestyle='-',
     color='b',
     dashes=(1, 1),
@@ -540,7 +462,7 @@ plt.plot(
     label='1 dim: '
     r'$\alpha=0$' + ' D=' + str(256) + r', $S = 1$')
 
-# alpha1, alpha2, alpha3, alpha4 = 1e5, 0.0, 512, 0
+# alpha1, alpha2, alpha3, alpha4 = 1e5, 0.00, 512, 0
 # plt.plot(MSE_Error_at_time(alpha1, alpha2, alpha3, alpha4),
 #          linestyle='-',
 #          color='b',
@@ -551,7 +473,7 @@ plt.plot(
 #          label='Embed: '
 #          r'$\alpha=10^5$' + ' D=' + str(alpha3) + r', $S = 1$')
 
-# alpha1, alpha2, alpha3, alpha4 = 0., 0.0, 512, 0
+# alpha1, alpha2, alpha3, alpha4 = 0., 0.00, 512, 0
 # plt.plot(MSE_Error_at_time(alpha1, alpha2, alpha3, alpha4),
 #          linestyle='-',
 #          color='b',
@@ -568,16 +490,17 @@ plt.yscale('log')
 current_values = plt.gca().get_yticks()
 plt.gca().set_yticklabels(['{:.0e}'.format(x) for x in current_values])
 plt.legend(loc='lower right', ncol=2)
-err = jnp.mean(MSE_Error_at_time_1dim(0., 0.0, alpha3, alpha4, 'best', 'x'))
-err1 = MSE_Error_compare(0., 0.0, alpha3, alpha4, 'best', 'x')
-plt.savefig('figs/plateau_adv1d/' + filename + '_mse_'+ '{:.2e}-{:.2e}'.format(err,err1) + '.png', bbox_inches='tight')
+err = jnp.mean(MSE_Error_at_time_1dim(0., 0.00, alpha3, alpha4, 'x'))
+plt.savefig(
+    'figs/plateau_adv1d/' + filename + '_mse_' + '{:.2e}'.format(err) + '.png',
+    bbox_inches='tight')
 # plt.close()
 plt.figure()
 
 
 def plot_figures(alpha1, alpha2, alpha3, alpha4, Nt, sample):
   Pred_sols, True_data = load_from_file_1dim(alpha1, alpha2, alpha3, alpha4,
-                                             'best', 'x')
+                                             'x')
   for i in range(K):
     plt.plot(
         x[:, i],
@@ -635,8 +558,8 @@ def plot_figures(alpha1, alpha2, alpha3, alpha4, Nt, sample):
 
   plt.legend(loc='best')
 
-  filename = 'K_' + str(K) + '_Np_' + str(N) + '_fdim_' + str(
-      alpha3) + '-' + str(alpha4)
+  # filename = 'K_' + str(K) + '_Np_' + str(N) + '_fdim_' + str(
+  #     alpha3) + '-' + str(alpha4)
   # plt.show()
   plt.savefig('figs/plateau_adv1d/' + filename + '.png', bbox_inches='tight')
   plt.close()
@@ -644,14 +567,14 @@ def plot_figures(alpha1, alpha2, alpha3, alpha4, Nt, sample):
 
 Nt = nt_step_test
 sample = 3
-plot_figures(0., 0.0, alpha3, alpha4, Nt, sample)
-# plot_figures(1e5, 0.0, 512, 10, Nt, sample)
-# plot_figures(1e5, 0.0, 512, Nt, sample)
-# plot_figures(0., 0.0, 512, Nt, sample)
-# plot_figures(1e5, 0.0, 512, Nt, sample)
+plot_figures(0., 0.00, alpha3, alpha4, Nt, sample)
+# plot_figures(1e5, 0.00, 512, 10, Nt, sample)
+# plot_figures(1e5, 0.00, 512, Nt, sample)
+# plot_figures(0., 0.00, 512, Nt, sample)
+# plot_figures(1e5, 0.00, 512, Nt, sample)
 
 # print(pred_sols)
-writer = anim.FFMpegWriter(fps=int(nt_step_test / 2))
+writer = anim.FFMpegWriter(fps=int(nt_step_test / 4))
 fig = plt.figure()
 with writer.saving(fig, "figs/plateau_adv1d/anim_" + filename + ".mp4", 100):
   for frame in range(nt_step_test):
