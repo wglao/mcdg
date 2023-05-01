@@ -16,8 +16,8 @@ parser.add_argument("--node", default=1, type=int)
 parser.add_argument("--GPU_index", default=0, type=int)
 parser.add_argument("--K", default=100, type=int)
 parser.add_argument("--N", default=2, type=int)
-parser.add_argument("--alpha3", default=512, type=int)
-parser.add_argument("--alpha4", default=256, type=int)
+parser.add_argument("--alpha3", default=128, type=int)
+parser.add_argument("--alpha4", default=128, type=int)
 parser.add_argument("--clip_steps", default=100, type=int)
 parser.add_argument("--clip_rate", default=4, type=int)
 args = parser.parse_args()
@@ -28,8 +28,8 @@ K = int(args.K)
 N = int(args.N)
 alpha3 = int(args.alpha3)
 alpha4 = int(args.alpha4)
-clip_steps = args.clip_steps
-clip_rate = args.clip_rate
+# clip_steps = args.clip_steps
+# clip_rate = args.clip_rate
 
 params = {
     'legend.fontsize': 14,
@@ -78,50 +78,68 @@ def load_plotfunction(alpha1, alpha2, alpha3, alpha4):
   n_seq = 0
   mc_alpha = int(alpha1)
 
-  num_train = 200
+  num_train = 400
   num_test = 10
 
   learning_rate = 1e-4
   batch_size = num_train if num_train == 3 else 10
-  num_epochs = 10000
+  num_epochs = 7500
 
   # In time space
-  LIFT = np.loadtxt(
-      '../MATLAB/LIFT_K_' + str(K) + '_Np_' + str(N) + '.txt', delimiter=',')
-  Dr = np.loadtxt(
-      '../MATLAB/Dr_K_' + str(K) + '_Np_' + str(N) + '.txt', delimiter=',')
-  Fscale = np.loadtxt(
-      '../MATLAB/Fscale_K_' + str(K) + '_Np_' + str(N) + '.txt', delimiter=',')
-  rk4a = np.loadtxt('../MATLAB/rk4a.txt', delimiter=',')
-  rk4b = np.loadtxt('../MATLAB/rk4b.txt', delimiter=',')
-  rx = np.loadtxt(
-      '../MATLAB/rx_K_' + str(K) + '_Np_' + str(N) + '.txt', delimiter=',')
-  vmapM = np.loadtxt(
-      '../MATLAB/vmapM_K_' + str(K) + '_Np_' + str(N) + '.txt',
-      delimiter=',',
-      dtype=int) - 1
-  vmapP = np.loadtxt(
-      '../MATLAB/vmapP_K_' + str(K) + '_Np_' + str(N) + '.txt',
-      delimiter=',',
-      dtype=int) - 1
-  vmapI = np.loadtxt(
-      '../MATLAB/vmapI_K_' + str(K) + '_Np_' + str(N) + '.txt',
-      delimiter=',',
-      dtype=int) - 1
-  vmapO = np.loadtxt(
-      '../MATLAB/vmapO_K_' + str(K) + '_Np_' + str(N) + '.txt',
-      delimiter=',',
-      dtype=int) - 1
-  mapI = np.loadtxt(
-      '../MATLAB/mapI_K_' + str(K) + '_Np_' + str(N) + '.txt',
-      delimiter=',',
-      dtype=int) - 1
-  mapO = np.loadtxt(
-      '../MATLAB/mapO_K_' + str(K) + '_Np_' + str(N) + '.txt',
-      delimiter=',',
-      dtype=int) - 1
-  nx = np.loadtxt(
-      '../MATLAB/nx_K_' + str(K) + '_Np_' + str(N) + '.txt', delimiter=',')
+  LIFT = jnp.array(
+      np.loadtxt(('../MATLAB/LIFT_K_' + str(K) + '_Np_' + str(N) + '.txt'),
+                 delimiter=','))
+  Dr = jnp.array(
+      np.loadtxt(('../MATLAB/Dr_K_' + str(K) + '_Np_' + str(N) + '.txt'),
+                 delimiter=','))
+  Fscale = jnp.array(
+      np.loadtxt(('../MATLAB/Fscale_K_' + str(K) + '_Np_' + str(N) + '.txt'),
+                 delimiter=','))
+  invV = jnp.array(
+      np.loadtxt(('../MATLAB/invV_K_' + str(K) + '_Np_' + str(N) + '.txt'),
+                 delimiter=','))
+  rk4a = jnp.array(np.loadtxt(('../MATLAB/rk4a.txt'), delimiter=','))
+  rk4b = jnp.array(np.loadtxt(('../MATLAB/rk4b.txt'), delimiter=','))
+  rk4c = jnp.array(np.loadtxt(('../MATLAB/rk4c.txt'), delimiter=','))
+  rx = jnp.array(
+      np.loadtxt(('../MATLAB/rx_K_' + str(K) + '_Np_' + str(N) + '.txt'),
+                 delimiter=','))
+  V = jnp.array(
+      np.loadtxt(('../MATLAB/V_K_' + str(K) + '_Np_' + str(N) + '.txt'),
+                 delimiter=','))
+  vmapM = jnp.array(
+      np.loadtxt(('../MATLAB/vmapM_K_' + str(K) + '_Np_' + str(N) + '.txt'),
+                 delimiter=',',
+                 dtype=int) - 1)
+  vmapP = jnp.array(
+      np.loadtxt(('../MATLAB/vmapP_K_' + str(K) + '_Np_' + str(N) + '.txt'),
+                 delimiter=',',
+                 dtype=int) - 1)
+  vmapI = jnp.array(
+      np.loadtxt(('../MATLAB/vmapI_K_' + str(K) + '_Np_' + str(N) + '.txt'),
+                 delimiter=',',
+                 dtype=int) - 1)
+  vmapO = jnp.array(
+      np.loadtxt(('../MATLAB/vmapO_K_' + str(K) + '_Np_' + str(N) + '.txt'),
+                 delimiter=',',
+                 dtype=int) - 1)
+  mapI = jnp.array(
+      np.loadtxt(('../MATLAB/mapI_K_' + str(K) + '_Np_' + str(N) + '.txt'),
+                 delimiter=',',
+                 dtype=int) - 1)
+  mapO = jnp.array(
+      np.loadtxt(('../MATLAB/mapO_K_' + str(K) + '_Np_' + str(N) + '.txt'),
+                 delimiter=',',
+                 dtype=int) - 1)
+  x = jnp.array(
+      np.loadtxt(('../MATLAB/x_K_' + str(K) + '_Np_' + str(N) + '.txt'),
+                 delimiter=','))
+  nx = jnp.array(
+      np.loadtxt(('../MATLAB/nx_K_' + str(K) + '_Np_' + str(N) + '.txt'),
+                 delimiter=','))
+  EToE = jnp.array(
+      np.loadtxt(('../MATLAB/EToE_K_' + str(K) + '_Np_' + str(N) + '.txt'),
+                 delimiter=',') - 1).astype(int)
   Np = N + 1
   Nfp = 1
   Nfaces = 2
@@ -132,13 +150,12 @@ def load_plotfunction(alpha1, alpha2, alpha3, alpha4):
 
   noise_level = alpha2
 
-  filename = 'Adv_plateau_DG_GNN_fft_clip_stepss{:.2f}-{:.2e}'.format(
-      clip_steps, clip_rate
-  ) + '_K_' + str(K) + '_Np_' + str(N) + '_flux_dim' + str(
-      int(alpha3)) + '-' + str(int(alpha4)) + 'MCalpha_' + str(
-          mc_alpha) + '_noise_' + '{:.2f}'.format(noise_level) + '_lr_' + str(
-              learning_rate) + '_batch_' + str(batch_size) + '_nseq_' + str(
-                  n_seq) + '_num_epochs_' + str(num_epochs)
+  filename = 'Adv_plateau_DG_GNN_K_' + str(K) + '_Np_' + str(
+      N) + '_flux_dim' + str(int(alpha3)) + '-' + str(int(
+          alpha4)) + 'MCalpha_' + str(mc_alpha) + '_noise_' + '{:.1f}'.format(
+              noise_level) + '_lr_' + str(learning_rate) + '_batch_' + str(
+                  batch_size) + '_nseq_' + str(n_seq) + '_num_epochs_' + str(
+                      num_epochs)
 
   #! 1. Loading data by pandas
   Test_data = pd.read_csv('../data/plateau/Test_d_' + str(num_test) + '_Nt_' +
@@ -199,8 +216,8 @@ def load_plotfunction(alpha1, alpha2, alpha3, alpha4):
   def u_2_graph(u):
     """Assign new node attributes to the base graph"""
     A = jnp.reshape(u, (K, Np))
-    # B = jnp.concatenate((A, x.T), axis=1)
-    return graph_base._replace(nodes=A)
+    B = jnp.concatenate((A, x.T), axis=1)
+    return graph_base._replace(nodes=B)
 
   def GraphMapFeatures(embed_node_fn):
 
@@ -212,7 +229,7 @@ def load_plotfunction(alpha1, alpha2, alpha3, alpha4):
   def net_embed(graphs_tuple):
     embedder = GraphMapFeatures(
         embed_node_fn=hk.Sequential([
-            hk.Linear(int(args.alpha3)), jnp.tanh,
+            hk.Linear(int(args.alpha3)), jax.nn.relu,
             hk.Linear(int(args.alpha3))
         ]))
     return embedder(graphs_tuple)
@@ -246,7 +263,7 @@ def load_plotfunction(alpha1, alpha2, alpha3, alpha4):
   def edge_update_fn(feats: jnp.ndarray) -> jnp.ndarray:
     """Edge update function for graph net."""
     net = hk.Sequential(
-        [hk.Linear(int(args.alpha3)), jnp.tanh,
+        [hk.Linear(int(args.alpha3)), jax.nn.relu,
          hk.Linear(int(args.alpha4))])
     return net(feats)
 
@@ -254,7 +271,7 @@ def load_plotfunction(alpha1, alpha2, alpha3, alpha4):
   def node_update_fn(feats: jnp.ndarray) -> jnp.ndarray:
     """Node update function for graph net."""
     net = hk.Sequential(
-        [hk.Linear(int(args.alpha3)), jnp.tanh,
+        [hk.Linear(int(args.alpha3)), jax.nn.relu,
          hk.Linear(int(Np))])
     return net(feats)
 
@@ -269,47 +286,140 @@ def load_plotfunction(alpha1, alpha2, alpha3, alpha4):
   net = hk.without_apply_rng(hk.transform(net_fn))
   init_params = net.init(jax.random.PRNGKey(1), Test_data[0, 0, :])
 
+  # optimizer = optax.adam(learning_rate)
+  # opt_state = optimizer.init(init_params)
+
   #! 3. Numerical solver + neural network solver (single time step)
   #! STEP 3.1:: Define numerical forward solver (Back-Euler scheme)
+
+  def minmod(v: jnp.ndarray) -> jnp.ndarray:
+    """Applies minmod to v
+    """
+    m = v.shape[0]
+    s = jnp.sum(jnp.sign(v), axis=0) / m
+    v_mask = jnp.array([
+        jnp.where(jnp.abs(s) == 1, jnp.abs(v[i]), 0) for i in range(v.shape[0])
+    ])
+    m_fn = s*jnp.min(v_mask, axis=0)
+    return m_fn
+
+  def slope_limit_lin(ul, xl, vm1, v0, vp1):
+    """Apply slope limiter on linear function ul(Np,1) on x(Np,1)
+      (vm1, v0, vp1) are cell averages left, center, right
+    """
+    # compute geometric measures
+    h = xl[Np - 1, :] - xl[0, :]
+    x0 = jnp.ones((Np, 1))*(xl[0, :] + h/2)
+
+    hN = jnp.ones((Np, 1))*h
+
+    # limit function
+    ux = (2/hN)*(Dr@ul)
+
+    ulimit = jnp.ones((Np, 1))*v0 + (xl-x0)*jnp.ones(
+        (Np, 1))*minmod(jnp.array([ux[0, :], (vp1-v0) / h, (v0-vm1) / h]))
+
+    return ulimit
+
+  def slope_limit_n(u):
+    """Apply slope limiter 
+      
+      .. math::
+          \Pi^N
+
+      to u assuming u is an Nth order polynomial
+    """
+    # Compute Cell Averages
+    uh = invV @ u
+    uh = uh.at[1:Np, :].set(0)
+    uavg = V @ uh
+    v = uavg[0, :]
+
+    # Apply Slope Limiter
+    eps0 = 1e-8
+
+    # find end values of each element
+    ue1 = u[0, :]
+    ue2 = u[-1, :]
+
+    # find cell averages
+    vk = v
+    vkm1 = jnp.array([v[0], *v[0:K - 1]])
+    vkp1 = jnp.array([*v[1:K], v[K + 1]])
+
+    # apply reconstruction
+    ve1 = vk - minmod(jnp.array([vk - ue1, vk - vkm1, vkp1 - vk]))
+    ve2 = vk + minmod(jnp.array([ue2 - vk, vk - vkm1, vkp1 - vk]))
+
+    # check if elements require limiting
+    ids = jnp.logical_or(jnp.abs(ve1 - ue1) > eps0, jnp.abs(ve2 - ue2) > eps0)
+    # create piecewise linear solution for limiting
+    uhl = invV @ u
+    uhl = uhl.at[2:Np, :].set(0)
+    ul = V @ uhl
+
+    # apply slope limiter
+    ulimit = jnp.where(ids, slope_limit_lin(ul, x, vkm1, vk, vkp1), u)
+
+    return ulimit
 
   def AdvecRHS1D(u):
     u_transpose = u.T.flatten()
     nx_transpose = nx.T.flatten()
     # form field differences at faces
-    alpha = 1
+    alpha = 0
     du_transpose = (u_transpose[vmapM] -
                     u_transpose[vmapP])*(nx_transpose -
-                                         (1-alpha)*np.abs(nx_transpose)) / 2
+                                         (1-alpha)*jnp.abs(nx_transpose)) / 2
 
     # Impose periodic conditions
     # impose boundary condition at x=0
     uin = u_transpose[-1]
     du_transpose = du_transpose.at[mapI].set(
         (u_transpose[vmapI] - uin)*(nx_transpose[mapI] -
-                                    (1-alpha)*np.abs(nx_transpose[mapI])) / 2)
+                                    (1-alpha)*jnp.abs(nx_transpose[mapI])) / 2)
 
     # impose boundary condition at x=1
     uout = u_transpose[0]
     du_transpose = du_transpose.at[mapO].set(
         (uout - u_transpose[vmapO])*(nx_transpose[mapI] -
-                                     (1-alpha)*np.abs(nx_transpose[mapI])) / 2)
+                                     (1-alpha)*jnp.abs(nx_transpose[mapI])) / 2)
 
     # compute right hand sides of the semi-discrete PDE
     du = jnp.reshape(du_transpose, (K, Nfp*Nfaces)).T
     rhsu = -rx*(Dr@u) + LIFT @ (Fscale*(du))
+
     return rhsu
+
+  def single_solve_forward(u_ti):
+    u = jnp.reshape(u_ti, (K, Np)).T
+    resu = jnp.zeros((Np, K))
+    for INTRK in range(0, 5):
+      rhsu = AdvecRHS1D(u)
+      resu = rk4a[INTRK]*resu + dt*rhsu
+      u = u + rk4b[INTRK]*resu
+      u = slope_limit_n(u)
+    return u
 
   dt_factor = 100
 
+  def body_func(carriers, noise):
+    params, u_ti = carriers
+    u_temp = u_ti + noise
+    return carriers, u_ti - dt_factor*dt*net.apply(params, u_temp)
+
   def single_forward_pass(params, u_ti):
-    du = net.apply(params, u_ti)
-    # u_next = u_ti - dt_factor*dt*du
-    return du
+    shp = u_ti.shape
+    resu = jnp.zeros((K*Np))
+    for INTRK in range(0, 5):
+      rhsu = net.apply(params, u_ti)
+      resu = rk4a[INTRK]*resu + dt*rhsu
+      u_ti = u_ti + rk4b[INTRK]*resu
+    return u_ti
 
   def solve_body(i, args):
     params, u_data_current = args
-    du = single_forward_pass(params, u_data_current[i - 1, ...])
-    u_next = u_data_current[i - 1, ...] + dt_factor*dt*du
+    u_next = single_forward_pass(params, u_data_current[i - 1, ...])
     u_data_current = u_data_current.at[i, :].set(u_next)
     return params, u_data_current
 
@@ -353,7 +463,7 @@ best_params, neural_solver, Test_data, Test_data_2, K, N, single_forward_pass, p
 # Test_data[:,100,:] - Test_data_2[:,100,:]
 Solution_samples_array = pd.DataFrame({'samples': Test_data.flatten()})
 Solution_samples_array.to_csv(
-    'data/plateau_adv1d/true_K_' + str(K) + '_Np_' + str(N) + '.csv',
+    'data/plateau_adv1d/true_K_' + str(K) + '_Np_' + str(N) + '_flux_dim{:d}-{:d}'.format(alpha3,alpha4) + '.csv',
     index=False)
 
 
@@ -363,9 +473,9 @@ def save_to_file(alpha1, alpha2, alpha3, alpha4):
 
   Solution_samples_array = pd.DataFrame({'samples': pred_sols.flatten()})
 
-  case = 'clip_steps{:d}-{:d}'.format(clip_steps, clip_rate) + '_K_' + str(
-      K) + '_Np_' + str(N) + '_alpha_' + str(alpha1) + '_dimD_' + str(
-          alpha3) + '-' + str(alpha4) + '_noise_level_' + str(alpha2)
+  case = 'K_' + str(K) + '_Np_' + str(N) + '_alpha_' + str(
+      alpha1) + '_dimD_' + str(alpha3) + '-' + str(
+          alpha4) + '_noise_level_' + str(alpha2)
 
   Solution_samples_array.to_csv(
       'data/plateau_adv1d/pred_1dim_' + case + '.csv', index=False)
@@ -393,9 +503,9 @@ def load_from_file(alpha1, alpha2, alpha3, alpha4):
 
 def load_from_file_1dim(alpha1, alpha2, alpha3, alpha4, case_coordinate):
 
-  case = 'clip_steps{:d}-{:d}'.format(clip_steps, clip_rate) + '_K_' + str(
-      K) + '_Np_' + str(N) + '_alpha_' + str(alpha1) + '_dimD_' + str(
-          alpha3) + '-' + str(alpha4) + '_noise_level_' + str(alpha2)
+  case = 'K_' + str(K) + '_Np_' + str(N) + '_alpha_' + str(
+      alpha1) + '_dimD_' + str(alpha3) + '-' + str(
+          alpha4) + '_noise_level_' + str(alpha2)
   if case_coordinate == 'x':
     pred = pd.read_csv('data/plateau_adv1d/pred_1dim_' + case + '.csv')
 
@@ -448,9 +558,8 @@ def MSE_Error_at_time_1dim(alpha1, alpha2, alpha3, alpha4, case_coordinate):
 
 plt.figure(figsize=(10, 6))
 
-filename = 'Adv_plateau_DG_GNN_fft_clip_steps{:d}-{:d}'.format(
-    clip_steps, clip_rate) + '_K_' + str(K) + '_Np_' + str(
-        N) + '_flux_dim' + str(alpha3) + '-' + str(alpha4)
+filename = 'Adv_plateau_DG_GNN_K_' + str(K) + '_Np_' + str(
+    N) + '_flux_dim' + str(alpha3) + '-' + str(alpha4)
 
 plt.plot(
     MSE_Error_at_time_1dim(0., 0.00, alpha3, alpha4, 'x'),

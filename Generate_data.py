@@ -27,7 +27,7 @@ train_seed = random.PRNGKey(0)
 test_seed = random.PRNGKey(1)
 
 # ### Data Generation Inputs
-num_train = 200
+num_train = 400
 num_test = 10
 
 # num_train = 2

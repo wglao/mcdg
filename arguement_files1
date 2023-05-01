@@ -1,4 +1,4 @@
-python ./Generate_data.py --node 1 --GPU_index 0 --K 50 --N 2
-python ./Generate_data.py --node 1 --GPU_index 1 --K 50 --N 4
-python ./Generate_data.py --node 1 --GPU_index 2 --K 50 --N 8
+python ./Generate_data.py --node 1 --GPU_index 0 --K 75 --N 2
+python ./Generate_data.py --node 1 --GPU_index 1 --K 75 --N 4
+ 
  

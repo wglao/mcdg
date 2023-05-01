@@ -7,8 +7,8 @@ args = parser.parse_args()
 number_of_node = args.files
 number_of_GPU_per_node = args.GPU_per_node
 
-alpha_2 = [20,50,100]
-alpha_1 = [2,4,8]
+alpha_2 = [100]
+alpha_1 = [2]
 
 LIST = []
 for a1 in alpha_1:

@@ -1,0 +1,38 @@
+Launcher: Setup complete.
+
+------------- SUMMARY ---------------
+   Number of hosts:    1
+   Working directory:  /work2/07169/wgl/frontera/PHO-ICES/mcdg
+   Processes per host: 4
+   Total processes:    4
+   Total jobs:         4
+   Scheduling method:  dynamic
+
+-------------------------------------
+Launcher: Starting parallel tasks...
+Launcher: Task 3 running job 1 on c199-101.frontera.tacc.utexas.edu (python ./Generate_data.py --node 1 --GPU_index 0 --K 75 --N 2)
+Launcher: Task 2 running job 3 on c199-101.frontera.tacc.utexas.edu ( )
+Launcher: Task 1 running job 2 on c199-101.frontera.tacc.utexas.edu (python ./Generate_data.py --node 1 --GPU_index 1 --K 75 --N 4)
+Launcher: Job 3 completed in 0 seconds.
+Launcher: Task 2 running job 4 on c199-101.frontera.tacc.utexas.edu ( )
+Launcher: Job 4 completed in 0 seconds.
+Launcher: Task 2 done. Exiting.
+0.0024937655860349127 401
+Generating train data ......................
+(400, 41, 225)
+9.373391
+Generating test data ......................
+(10, 402, 225)
+8.380585
+Launcher: Job 1 completed in 1377 seconds.
+Launcher: Task 3 done. Exiting.
+0.0008628127696289905 1159
+Generating train data ......................
+(400, 116, 375)
+9.373391
+Generating test data ......................
+(10, 1160, 375)
+8.431084
+Launcher: Job 2 completed in 3442 seconds.
+Launcher: Task 1 done. Exiting.
+Launcher: Done. Job exited without errors
